@@ -1,5 +1,10 @@
 # API Contract (OpenAPI)
 
+## CI/CD e Docker
+
+- Pipeline GitHub Actions: `.github/workflows/ci-cd.yml`
+- Documentacao de CI/CD, Docker Hub e variaveis: `docs/CI_CD_DOCKER.md`
+
 Base path (server): `/api/v1`
 
 ## Authentication
