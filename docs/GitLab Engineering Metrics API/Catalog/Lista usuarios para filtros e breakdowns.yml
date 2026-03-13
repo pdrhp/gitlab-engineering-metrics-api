@@ -1,0 +1,163 @@
+info:
+  name: Lista usuarios para filtros e breakdowns
+  type: http
+  seq: 3
+  tags:
+    - Catalog
+
+http:
+  method: GET
+  url: "{{baseUrl}}/users"
+  params:
+    - name: search
+      value: ""
+      type: query
+      disabled: true
+    - name: project_id
+      value: ""
+      type: query
+      disabled: true
+    - name: group_path
+      value: ""
+      type: query
+      disabled: true
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+examples:
+  - name: 200 Response
+    description: Lista de usuarios
+    request:
+      url: "{{baseUrl}}/users"
+      method: GET
+      params:
+        - name: search
+          value: ""
+          type: query
+          disabled: true
+        - name: project_id
+          value: ""
+          type: query
+          disabled: true
+        - name: group_path
+          value: ""
+          type: query
+          disabled: true
+    response:
+      status: 200
+      statusText: OK
+      headers:
+        - name: Content-Type
+          value: application/json
+      body:
+        type: json
+        data: |-
+          [
+            {
+              "username": "",
+              "display_name": "",
+              "active_issues": 0,
+              "completed_issues_last_30_days": 0
+            }
+          ]
+  - name: 401 Response
+    description: Credenciais ausentes ou invalidas
+    request:
+      url: "{{baseUrl}}/users"
+      method: GET
+      params:
+        - name: search
+          value: ""
+          type: query
+          disabled: true
+        - name: project_id
+          value: ""
+          type: query
+          disabled: true
+        - name: group_path
+          value: ""
+          type: query
+          disabled: true
+    response:
+      status: 401
+      statusText: Unauthorized
+      headers:
+        - name: Content-Type
+          value: application/json
+      body:
+        type: json
+        data: |-
+          {
+            "code": "",
+            "message": "",
+            "request_id": ""
+          }
+  - name: 422 Response
+    description: Filtros semanticamente invalidos
+    request:
+      url: "{{baseUrl}}/users"
+      method: GET
+      params:
+        - name: search
+          value: ""
+          type: query
+          disabled: true
+        - name: project_id
+          value: ""
+          type: query
+          disabled: true
+        - name: group_path
+          value: ""
+          type: query
+          disabled: true
+    response:
+      status: 422
+      statusText: Unprocessable Entity
+      headers:
+        - name: Content-Type
+          value: application/json
+      body:
+        type: json
+        data: |-
+          {
+            "code": "",
+            "message": "",
+            "request_id": ""
+          }
+  - name: 500 Response
+    description: Erro interno
+    request:
+      url: "{{baseUrl}}/users"
+      method: GET
+      params:
+        - name: search
+          value: ""
+          type: query
+          disabled: true
+        - name: project_id
+          value: ""
+          type: query
+          disabled: true
+        - name: group_path
+          value: ""
+          type: query
+          disabled: true
+    response:
+      status: 500
+      statusText: Internal Server Error
+      headers:
+        - name: Content-Type
+          value: application/json
+      body:
+        type: json
+        data: |-
+          {
+            "code": "",
+            "message": "",
+            "request_id": ""
+          }

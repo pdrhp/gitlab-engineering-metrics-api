@@ -1,0 +1,48 @@
+info:
+  name: Metricas de performance da API
+  type: http
+  seq: 2
+  tags:
+    - Observability
+
+http:
+  method: GET
+  url: "{{baseUrl}}/metrics"
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+examples:
+  - name: 200 Response
+    description: Snapshot das metricas
+    request:
+      url: "{{baseUrl}}/metrics"
+      method: GET
+    response:
+      status: 200
+      statusText: OK
+      headers:
+        - name: Content-Type
+          value: application/json
+      body:
+        type: json
+        data: |-
+          {
+            "endpoints": [
+              {
+                "method": "",
+                "path": "",
+                "total_requests": 0,
+                "status_counts": {},
+                "error_count": 0,
+                "avg_latency": "",
+                "p95_latency": ""
+              }
+            ],
+            "total_requests": 0,
+            "total_errors": 0
+          }

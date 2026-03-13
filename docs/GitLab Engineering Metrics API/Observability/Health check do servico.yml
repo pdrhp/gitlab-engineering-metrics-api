@@ -1,0 +1,54 @@
+info:
+  name: Health check do servico
+  type: http
+  seq: 1
+  tags:
+    - Observability
+
+http:
+  method: GET
+  url: "{{baseUrl}}/health"
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+examples:
+  - name: 200 Response
+    description: Servico saudavel
+    request:
+      url: "{{baseUrl}}/health"
+      method: GET
+    response:
+      status: 200
+      statusText: OK
+      headers:
+        - name: Content-Type
+          value: application/json
+      body:
+        type: json
+        data: |-
+          {
+            "status": "healthy"
+          }
+  - name: 503 Response
+    description: Servico indisponivel (banco de dados nao acessivel)
+    request:
+      url: "{{baseUrl}}/health"
+      method: GET
+    response:
+      status: 503
+      statusText: Service Unavailable
+      headers:
+        - name: Content-Type
+          value: application/json
+      body:
+        type: json
+        data: |-
+          {
+            "status": "unhealthy",
+            "error": ""
+          }

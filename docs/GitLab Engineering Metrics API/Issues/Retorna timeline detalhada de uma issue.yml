@@ -1,0 +1,161 @@
+info:
+  name: Retorna timeline detalhada de uma issue
+  type: http
+  seq: 2
+  tags:
+    - Issues
+
+http:
+  method: GET
+  url: "{{baseUrl}}/issues/:id/timeline"
+  params:
+    - name: id
+      value: ""
+      type: path
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+examples:
+  - name: 200 Response
+    description: Timeline da issue
+    request:
+      url: "{{baseUrl}}/issues/:id/timeline"
+      method: GET
+      params:
+        - name: id
+          value: ""
+          type: path
+    response:
+      status: 200
+      statusText: OK
+      headers:
+        - name: Content-Type
+          value: application/json
+      body:
+        type: json
+        data: |-
+          {
+            "issue": {
+              "issue_id": 123,
+              "gitlab_issue_id": 456,
+              "gitlab_iid": 42,
+              "issue_iid": 42,
+              "project_id": 789,
+              "project_path": "group/project",
+              "id": 123,
+              "title": "Issue title",
+              "metadata_labels": ["label1", "label2"],
+              "assignees": ["user1"],
+              "current_canonical_state": "IN_PROGRESS",
+              "gitlab_created_at": "2026-01-01T00:00:00Z"
+            },
+            "timeline": [
+              {
+                "type": "state_change",
+                "timestamp": "2026-01-02T10:00:00Z",
+                "actor": "user1",
+                "from_state": "BACKLOG",
+                "to_state": "IN_PROGRESS",
+                "duration_in_previous_state_mins": 1440,
+                "is_rework": false,
+                "body": ""
+              }
+            ]
+          }
+  - name: 400 Response
+    description: Parametros invalidos
+    request:
+      url: "{{baseUrl}}/issues/:id/timeline"
+      method: GET
+      params:
+        - name: id
+          value: ""
+          type: path
+    response:
+      status: 400
+      statusText: Bad Request
+      headers:
+        - name: Content-Type
+          value: application/json
+      body:
+        type: json
+        data: |-
+          {
+            "code": "",
+            "message": "",
+            "request_id": ""
+          }
+  - name: 401 Response
+    description: Credenciais ausentes ou invalidas
+    request:
+      url: "{{baseUrl}}/issues/:id/timeline"
+      method: GET
+      params:
+        - name: id
+          value: ""
+          type: path
+    response:
+      status: 401
+      statusText: Unauthorized
+      headers:
+        - name: Content-Type
+          value: application/json
+      body:
+        type: json
+        data: |-
+          {
+            "code": "",
+            "message": "",
+            "request_id": ""
+          }
+  - name: 404 Response
+    description: Recurso nao encontrado
+    request:
+      url: "{{baseUrl}}/issues/:id/timeline"
+      method: GET
+      params:
+        - name: id
+          value: ""
+          type: path
+    response:
+      status: 404
+      statusText: Not Found
+      headers:
+        - name: Content-Type
+          value: application/json
+      body:
+        type: json
+        data: |-
+          {
+            "code": "",
+            "message": "",
+            "request_id": ""
+          }
+  - name: 500 Response
+    description: Erro interno
+    request:
+      url: "{{baseUrl}}/issues/:id/timeline"
+      method: GET
+      params:
+        - name: id
+          value: ""
+          type: path
+    response:
+      status: 500
+      statusText: Internal Server Error
+      headers:
+        - name: Content-Type
+          value: application/json
+      body:
+        type: json
+        data: |-
+          {
+            "code": "",
+            "message": "",
+            "request_id": ""
+          }

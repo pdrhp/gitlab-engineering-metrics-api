@@ -1,0 +1,15 @@
+.git
+.gitignore
+.vscode/
+docs/
+test/
+logs/
+*.log
+*.md
+
+.env
+.env.*
+!.env.example
+
+main
+repositories.test

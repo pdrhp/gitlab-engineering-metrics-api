@@ -1,0 +1,994 @@
+openapi: 3.0.3
+info:
+  title: GitLab Engineering Metrics API
+  version: 1.0.0
+  description: |
+    API read-only para exposicao de metricas de engenharia alimentadas a partir
+    de tabelas silver e views gold do banco gitlab_elt.
+servers:
+  - url: /api/v1
+security:
+  - ClientCredentials: []
+tags:
+  - name: Catalog
+    description: Endpoints de catalogo (projetos, grupos, usuarios)
+  - name: Metrics
+    description: Endpoints de metricas de engenharia
+  - name: Issues
+    description: Endpoints de consulta de issues
+  - name: Observability
+    description: Endpoints de health check e metricas de performance
+paths:
+  /projects:
+    get:
+      tags: [Catalog]
+      summary: Lista projetos
+      parameters:
+        - in: query
+          name: search
+          schema:
+            type: string
+        - in: query
+          name: group_path
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Lista de projetos
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Project'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /groups:
+    get:
+      tags: [Catalog]
+      summary: Lista grupos disponiveis para filtro
+      parameters:
+        - in: query
+          name: search
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Lista de grupos
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Group'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /users:
+    get:
+      tags: [Catalog]
+      summary: Lista usuarios para filtros e breakdowns
+      parameters:
+        - in: query
+          name: search
+          schema:
+            type: string
+        - in: query
+          name: project_id
+          schema:
+            type: integer
+        - in: query
+          name: group_path
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Lista de usuarios
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/UnprocessableFilter'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /metrics/delivery:
+    get:
+      tags: [Metrics]
+      summary: Retorna metricas de delivery
+      parameters:
+        - $ref: '#/components/parameters/StartDate'
+        - $ref: '#/components/parameters/EndDate'
+        - $ref: '#/components/parameters/ProjectId'
+        - $ref: '#/components/parameters/GroupPath'
+        - $ref: '#/components/parameters/Assignee'
+      responses:
+        '200':
+          description: Metricas de delivery
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeliveryMetricsResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/UnprocessableFilter'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /metrics/quality:
+    get:
+      tags: [Metrics]
+      summary: Retorna metricas de qualidade e gargalos
+      parameters:
+        - $ref: '#/components/parameters/StartDate'
+        - $ref: '#/components/parameters/EndDate'
+        - $ref: '#/components/parameters/ProjectId'
+        - $ref: '#/components/parameters/GroupPath'
+      responses:
+        '200':
+          description: Metricas de qualidade
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QualityMetricsResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/UnprocessableFilter'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /metrics/wip:
+    get:
+      tags: [Metrics]
+      summary: Retorna snapshot de WIP atual e aging
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+        - $ref: '#/components/parameters/GroupPath'
+        - $ref: '#/components/parameters/Assignee'
+      responses:
+        '200':
+          description: Snapshot de WIP
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WipMetricsResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/UnprocessableFilter'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /metrics/ghost-work:
+    get:
+      tags: [Metrics]
+      summary: Retorna deep dive de ghost work
+      parameters:
+        - $ref: '#/components/parameters/StartDateOptional'
+        - $ref: '#/components/parameters/EndDateOptional'
+        - $ref: '#/components/parameters/ProjectId'
+        - $ref: '#/components/parameters/GroupPath'
+        - $ref: '#/components/parameters/Assignee'
+        - $ref: '#/components/parameters/IssueId'
+        - $ref: '#/components/parameters/GitlabIssueId'
+        - $ref: '#/components/parameters/IssueIID'
+        - in: query
+          name: page
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - in: query
+          name: page_size
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 25
+      responses:
+        '200':
+          description: Deep dive de ghost work
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GhostWorkMetricsResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/UnprocessableFilter'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /issues:
+    get:
+      tags: [Issues]
+      summary: Lista issues para drill-down operacional
+      parameters:
+        - $ref: '#/components/parameters/StartDateOptional'
+        - $ref: '#/components/parameters/EndDateOptional'
+        - $ref: '#/components/parameters/ProjectId'
+        - $ref: '#/components/parameters/GroupPath'
+        - $ref: '#/components/parameters/Assignee'
+        - $ref: '#/components/parameters/IssueId'
+        - $ref: '#/components/parameters/GitlabIssueId'
+        - $ref: '#/components/parameters/IssueIID'
+        - in: query
+          name: state
+          schema:
+            type: string
+        - in: query
+          name: metric_flag
+          schema:
+            type: string
+            enum: [rework, blocked, aging_wip, bypass]
+        - in: query
+          name: page
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - in: query
+          name: page_size
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 25
+      responses:
+        '200':
+          description: Lista paginada de issues
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IssuesListResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/UnprocessableFilter'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /issues/{id}/timeline:
+    get:
+      tags: [Issues]
+      summary: Retorna timeline detalhada de uma issue
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Timeline da issue
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IssueTimelineResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /health:
+    get:
+      tags: [Observability]
+      summary: Health check do servico
+      description: |
+        Retorna status de saude da API e do banco de dados.
+        Nao requer autenticacao.
+      responses:
+        '200':
+          description: Servico saudavel
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: healthy
+        '503':
+          description: Servico indisponivel (banco de dados nao acessivel)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: unhealthy
+                  error:
+                    type: string
+  /metrics:
+    get:
+      tags: [Observability]
+      summary: Metricas de performance da API
+      description: |
+        Retorna metricas de latencia, throughput e erros por endpoint.
+        Nao requer autenticacao.
+      responses:
+        '200':
+          description: Snapshot das metricas
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MetricsSnapshot'
+  /users/{username}/performance:
+    get:
+      tags: [Metrics]
+      summary: Retorna metricas de performance de um usuario
+      parameters:
+        - in: path
+          name: username
+          required: true
+          schema:
+            type: string
+          description: Username do usuario
+        - $ref: '#/components/parameters/StartDateOptional'
+        - $ref: '#/components/parameters/EndDateOptional'
+        - $ref: '#/components/parameters/ProjectId'
+        - $ref: '#/components/parameters/GroupPath'
+      responses:
+        '200':
+          description: Metricas de performance do usuario
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserPerformanceResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableFilter'
+        '500':
+          $ref: '#/components/responses/InternalError'
+components:
+  securitySchemes:
+    ClientCredentials:
+      type: apiKey
+      in: header
+      name: X-Client-ID
+      description: |
+        Autenticacao via client credentials. Envie X-Client-ID e X-Client-Secret
+        nos headers de cada requisicao. Credenciais sao configuradas via
+        variavel de ambiente CLIENT_CREDENTIALS no formato "client1:secret1,client2:secret2".
+  parameters:
+    StartDate:
+      in: query
+      name: start_date
+      required: true
+      schema:
+        type: string
+        format: date
+    EndDate:
+      in: query
+      name: end_date
+      required: true
+      schema:
+        type: string
+        format: date
+    StartDateOptional:
+      in: query
+      name: start_date
+      required: false
+      schema:
+        type: string
+        format: date
+    EndDateOptional:
+      in: query
+      name: end_date
+      required: false
+      schema:
+        type: string
+        format: date
+    ProjectId:
+      in: query
+      name: project_id
+      required: false
+      schema:
+        type: integer
+    GroupPath:
+      in: query
+      name: group_path
+      required: false
+      schema:
+        type: string
+    Assignee:
+      in: query
+      name: assignee
+      required: false
+      schema:
+        type: string
+    IssueId:
+      in: query
+      name: issue_id
+      required: false
+      schema:
+        type: integer
+      description: Filter by internal issue ID
+    GitlabIssueId:
+      in: query
+      name: gitlab_issue_id
+      required: false
+      schema:
+        type: integer
+      description: Filter by GitLab issue ID
+    IssueIID:
+      in: query
+      name: issue_iid
+      required: false
+      schema:
+        type: integer
+      description: Filter by issue IID (project-relative issue number)
+  responses:
+    BadRequest:
+      description: Parametros invalidos
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Unauthorized:
+      description: Credenciais ausentes ou invalidas
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: Recurso nao encontrado
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    UnprocessableFilter:
+      description: Filtros semanticamente invalidos
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    InternalError:
+      description: Erro interno
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+  schemas:
+    ErrorResponse:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          description: Codigo do erro (ex. BAD_REQUEST, UNAUTHORIZED, NOT_FOUND, VALIDATION_ERROR, INTERNAL_ERROR)
+        message:
+          type: string
+          description: Mensagem descritiva do erro
+        request_id:
+          type: string
+          description: ID da requisicao para rastreamento
+    MetricsSnapshot:
+      type: object
+      properties:
+        endpoints:
+          type: array
+          items:
+            $ref: '#/components/schemas/EndpointMetrics'
+        total_requests:
+          type: integer
+          description: Total de requisicoes processadas
+        total_errors:
+          type: integer
+          description: Total de erros (status >= 400)
+    EndpointMetrics:
+      type: object
+      properties:
+        method:
+          type: string
+          description: Metodo HTTP
+        path:
+          type: string
+          description: Caminho do endpoint
+        total_requests:
+          type: integer
+          description: Total de requisicoes para este endpoint
+        status_counts:
+          type: object
+          additionalProperties:
+            type: integer
+          description: Contagem de requisicoes por codigo de status
+        error_count:
+          type: integer
+          description: Contagem de erros para este endpoint
+        avg_latency:
+          type: string
+          description: Latencia media (ex. "45.2ms")
+        p95_latency:
+          type: string
+          description: Latencia P95 (ex. "120.5ms")
+    Project:
+      type: object
+      required: [id, name, path, total_issues, last_synced_at]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        path:
+          type: string
+        total_issues:
+          type: integer
+        last_synced_at:
+          type: string
+          format: date-time
+    Group:
+      type: object
+      required: [group_path, project_count, total_issues, last_synced_at]
+      properties:
+        group_path:
+          type: string
+        project_count:
+          type: integer
+        total_issues:
+          type: integer
+        last_synced_at:
+          type: string
+          format: date-time
+    User:
+      type: object
+      required: [username, display_name, active_issues, completed_issues_last_30_days]
+      properties:
+        username:
+          type: string
+        display_name:
+          type: string
+        active_issues:
+          type: integer
+        completed_issues_last_30_days:
+          type: integer
+    DeliveryMetricsResponse:
+      type: object
+      properties:
+        period:
+          type: object
+          properties:
+            start_date:
+              type: string
+              format: date
+            end_date:
+              type: string
+              format: date
+        throughput:
+          type: object
+          properties:
+            total_issues_done:
+              type: integer
+            avg_per_week:
+              type: number
+              format: float
+        speed_metrics_days:
+          type: object
+          properties:
+            lead_time:
+              $ref: '#/components/schemas/AvgP85Metric'
+            cycle_time:
+              $ref: '#/components/schemas/AvgP85Metric'
+        breakdown_by_assignee:
+          type: array
+          items:
+            type: object
+            properties:
+              assignee:
+                type: string
+              issues_delivered:
+                type: integer
+              avg_cycle_time:
+                type: number
+                format: float
+    QualityMetricsResponse:
+      type: object
+      properties:
+        rework:
+          type: object
+          properties:
+            ping_pong_rate_pct:
+              type: number
+              format: float
+            total_reworked_issues:
+              type: integer
+            avg_rework_cycles_per_issue:
+              type: number
+              format: float
+        process_health:
+          type: object
+          properties:
+            bypass_rate_pct:
+              type: number
+              format: float
+            first_time_pass_rate_pct:
+              type: number
+              format: float
+        bottlenecks:
+          type: object
+          properties:
+            total_blocked_time_hours:
+              type: number
+              format: float
+            avg_blocked_time_per_issue_hours:
+              type: number
+              format: float
+        defects:
+          type: object
+          properties:
+            bug_ratio_pct:
+              type: number
+              format: float
+    WipMetricsResponse:
+      type: object
+      properties:
+        current_wip:
+          type: object
+          properties:
+            in_progress:
+              type: integer
+            qa_review:
+              type: integer
+            blocked:
+              type: integer
+        aging_wip:
+          type: array
+          items:
+            $ref: '#/components/schemas/AgingIssue'
+    AgingIssue:
+      type: object
+      properties:
+        issue_id:
+          type: integer
+        gitlab_issue_id:
+          type: integer
+        issue_iid:
+          type: integer
+        project_id:
+          type: integer
+        project_path:
+          type: string
+        title:
+          type: string
+        assignees:
+          type: array
+          items:
+            type: string
+        current_state:
+          type: string
+        days_in_state:
+          type: integer
+        warning_flag:
+          type: boolean
+    IssuesListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/IssueListItem'
+        page:
+          type: integer
+        page_size:
+          type: integer
+        total:
+          type: integer
+    IssueListItem:
+      type: object
+      properties:
+        issue_id:
+          type: integer
+        gitlab_issue_id:
+          type: integer
+        issue_iid:
+          type: integer
+        project_id:
+          type: integer
+        project_path:
+          type: string
+        title:
+          type: string
+        assignees:
+          type: array
+          items:
+            type: string
+        current_canonical_state:
+          type: string
+        lead_time_days:
+          type: number
+          format: float
+        cycle_time_days:
+          type: number
+          format: float
+        blocked_time_hours:
+          type: number
+          format: float
+        qa_to_dev_return_count:
+          type: integer
+        days_in_state:
+          type: integer
+    IssueTimelineResponse:
+      type: object
+      properties:
+        issue:
+          $ref: '#/components/schemas/IssueSummary'
+        timeline:
+          type: array
+          items:
+            $ref: '#/components/schemas/TimelineEvent'
+    IssueSummary:
+      type: object
+      properties:
+        issue_id:
+          type: integer
+        gitlab_issue_id:
+          type: integer
+        issue_iid:
+          type: integer
+        project_id:
+          type: integer
+        project_path:
+          type: string
+        title:
+          type: string
+        metadata_labels:
+          type: array
+          items:
+            type: string
+        assignees:
+          type: array
+          items:
+            type: string
+        current_canonical_state:
+          type: string
+        gitlab_created_at:
+          type: string
+          format: date-time
+    TimelineEvent:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [state_change, comment]
+        timestamp:
+          type: string
+          format: date-time
+        actor:
+          type: string
+        from_state:
+          type: string
+        to_state:
+          type: string
+        duration_in_previous_state_mins:
+          type: integer
+        is_rework:
+          type: boolean
+        body:
+          type: string
+    AvgP85Metric:
+      type: object
+      properties:
+        avg:
+          type: number
+          format: float
+        p85:
+          type: number
+          format: float
+    GhostWorkMetrics:
+      type: object
+      properties:
+        rate_pct:
+          type: number
+          format: float
+    UserDeliveryMetrics:
+      type: object
+      properties:
+        throughput:
+          $ref: '#/components/schemas/Throughput'
+        speed_metrics_days:
+          $ref: '#/components/schemas/SpeedMetrics'
+    UserQualityMetrics:
+      type: object
+      properties:
+        rework:
+          $ref: '#/components/schemas/ReworkMetrics'
+        ghost_work:
+          $ref: '#/components/schemas/GhostWorkMetrics'
+        process_health:
+          $ref: '#/components/schemas/ProcessHealthMetrics'
+        bottlenecks:
+          $ref: '#/components/schemas/BottleneckMetrics'
+        defects:
+          $ref: '#/components/schemas/DefectMetrics'
+    UserPerformanceIdentity:
+      type: object
+      properties:
+        username:
+          type: string
+        display_name:
+          type: string
+        active_issues:
+          type: integer
+        completed_issues_last_30_days:
+          type: integer
+    UserPerformanceResponse:
+      type: object
+      properties:
+        user:
+          $ref: '#/components/schemas/UserPerformanceIdentity'
+        period:
+          $ref: '#/components/schemas/Period'
+        delivery:
+          $ref: '#/components/schemas/UserDeliveryMetrics'
+        quality:
+          $ref: '#/components/schemas/UserQualityMetrics'
+        wip:
+          $ref: '#/components/schemas/WipMetricsResponse'
+    Throughput:
+      type: object
+      properties:
+        total_issues_done:
+          type: integer
+        avg_per_week:
+          type: number
+          format: float
+    SpeedMetrics:
+      type: object
+      properties:
+        lead_time:
+          $ref: '#/components/schemas/AvgP85Metric'
+        cycle_time:
+          $ref: '#/components/schemas/AvgP85Metric'
+    ReworkMetrics:
+      type: object
+      properties:
+        ping_pong_rate_pct:
+          type: number
+          format: float
+        total_reworked_issues:
+          type: integer
+        avg_rework_cycles_per_issue:
+          type: number
+          format: float
+    ProcessHealthMetrics:
+      type: object
+      properties:
+        bypass_rate_pct:
+          type: number
+          format: float
+        first_time_pass_rate_pct:
+          type: number
+          format: float
+    BottleneckMetrics:
+      type: object
+      properties:
+        total_blocked_time_hours:
+          type: number
+          format: float
+        avg_blocked_time_per_issue_hours:
+          type: number
+          format: float
+    DefectMetrics:
+      type: object
+      properties:
+        bug_ratio_pct:
+          type: number
+          format: float
+    Period:
+      type: object
+      properties:
+        start_date:
+          type: string
+          format: date
+        end_date:
+          type: string
+          format: date
+    CurrentWIP:
+      type: object
+      properties:
+        in_progress:
+          type: integer
+        qa_review:
+          type: integer
+        blocked:
+          type: integer
+    GhostWorkIssue:
+      type: object
+      properties:
+        issue_id:
+          type: integer
+        gitlab_issue_id:
+          type: integer
+        issue_iid:
+          type: integer
+        project_id:
+          type: integer
+        project_path:
+          type: string
+        issue_title:
+          type: string
+        assignees:
+          type: array
+          items:
+            type: string
+        from_state:
+          type: string
+        to_state:
+          type: string
+        transition_time:
+          type: string
+          format: date-time
+        duration_hours:
+          type: number
+          format: float
+        current_state:
+          type: string
+        final_done_at:
+          type: string
+          format: date-time
+    GhostWorkTransitionSummary:
+      type: object
+      properties:
+        from_state:
+          type: string
+        to_state:
+          type: string
+        count:
+          type: integer
+    GhostWorkUserBreakdown:
+      type: object
+      properties:
+        username:
+          type: string
+        ghost_work_count:
+          type: integer
+        issue_iids:
+          type: array
+          items:
+            type: integer
+    GhostWorkMetricsResponse:
+      type: object
+      properties:
+        total_issues:
+          type: integer
+        period:
+          $ref: '#/components/schemas/Period'
+        issues:
+          type: array
+          items:
+            $ref: '#/components/schemas/GhostWorkIssue'
+        transition_analysis:
+          type: array
+          items:
+            $ref: '#/components/schemas/GhostWorkTransitionSummary'
+        breakdown_by_user:
+          type: array
+          items:
+            $ref: '#/components/schemas/GhostWorkUserBreakdown'
+        page:
+          type: integer
+        page_size:
+          type: integer
+        total_pages:
+          type: integer

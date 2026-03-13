@@ -1,0 +1,99 @@
+info:
+  name: Lista grupos disponiveis para filtro
+  type: http
+  seq: 2
+  tags:
+    - Catalog
+
+http:
+  method: GET
+  url: "{{baseUrl}}/groups"
+  params:
+    - name: search
+      value: ""
+      type: query
+      disabled: true
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+examples:
+  - name: 200 Response
+    description: Lista de grupos
+    request:
+      url: "{{baseUrl}}/groups"
+      method: GET
+      params:
+        - name: search
+          value: ""
+          type: query
+          disabled: true
+    response:
+      status: 200
+      statusText: OK
+      headers:
+        - name: Content-Type
+          value: application/json
+      body:
+        type: json
+        data: |-
+          [
+            {
+              "group_path": "",
+              "project_count": 0,
+              "total_issues": 0,
+              "last_synced_at": ""
+            }
+          ]
+  - name: 401 Response
+    description: Credenciais ausentes ou invalidas
+    request:
+      url: "{{baseUrl}}/groups"
+      method: GET
+      params:
+        - name: search
+          value: ""
+          type: query
+          disabled: true
+    response:
+      status: 401
+      statusText: Unauthorized
+      headers:
+        - name: Content-Type
+          value: application/json
+      body:
+        type: json
+        data: |-
+          {
+            "code": "",
+            "message": "",
+            "request_id": ""
+          }
+  - name: 500 Response
+    description: Erro interno
+    request:
+      url: "{{baseUrl}}/groups"
+      method: GET
+      params:
+        - name: search
+          value: ""
+          type: query
+          disabled: true
+    response:
+      status: 500
+      statusText: Internal Server Error
+      headers:
+        - name: Content-Type
+          value: application/json
+      body:
+        type: json
+        data: |-
+          {
+            "code": "",
+            "message": "",
+            "request_id": ""
+          }

@@ -1,0 +1,176 @@
+info:
+  name: Retorna snapshot de WIP atual e aging
+  type: http
+  seq: 3
+  tags:
+    - Metrics
+
+http:
+  method: GET
+  url: "{{baseUrl}}/metrics/wip"
+  params:
+    - name: project_id
+      value: ""
+      type: query
+      disabled: true
+    - name: group_path
+      value: ""
+      type: query
+      disabled: true
+    - name: assignee
+      value: ""
+      type: query
+      disabled: true
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+examples:
+  - name: 200 Response
+    description: Snapshot de WIP
+    request:
+      url: "{{baseUrl}}/metrics/wip"
+      method: GET
+      params:
+        - name: project_id
+          value: ""
+          type: query
+          disabled: true
+        - name: group_path
+          value: ""
+          type: query
+          disabled: true
+        - name: assignee
+          value: ""
+          type: query
+          disabled: true
+    response:
+      status: 200
+      statusText: OK
+      headers:
+        - name: Content-Type
+          value: application/json
+      body:
+        type: json
+        data: |-
+          {
+            "current_wip": {
+              "in_progress": 5,
+              "qa_review": 3,
+              "blocked": 1
+            },
+            "aging_wip": [
+              {
+                "issue_id": 123,
+                "gitlab_issue_id": 456,
+                "issue_iid": 42,
+                "project_id": 789,
+                "project_path": "group/project",
+                "title": "Aging issue",
+                "assignees": ["user1"],
+                "current_state": "IN_PROGRESS",
+                "days_in_state": 10,
+                "warning_flag": true
+              }
+            ]
+          }
+  - name: 401 Response
+    description: Credenciais ausentes ou invalidas
+    request:
+      url: "{{baseUrl}}/metrics/wip"
+      method: GET
+      params:
+        - name: project_id
+          value: ""
+          type: query
+          disabled: true
+        - name: group_path
+          value: ""
+          type: query
+          disabled: true
+        - name: assignee
+          value: ""
+          type: query
+          disabled: true
+    response:
+      status: 401
+      statusText: Unauthorized
+      headers:
+        - name: Content-Type
+          value: application/json
+      body:
+        type: json
+        data: |-
+          {
+            "code": "",
+            "message": "",
+            "request_id": ""
+          }
+  - name: 422 Response
+    description: Filtros semanticamente invalidos
+    request:
+      url: "{{baseUrl}}/metrics/wip"
+      method: GET
+      params:
+        - name: project_id
+          value: ""
+          type: query
+          disabled: true
+        - name: group_path
+          value: ""
+          type: query
+          disabled: true
+        - name: assignee
+          value: ""
+          type: query
+          disabled: true
+    response:
+      status: 422
+      statusText: Unprocessable Entity
+      headers:
+        - name: Content-Type
+          value: application/json
+      body:
+        type: json
+        data: |-
+          {
+            "code": "",
+            "message": "",
+            "request_id": ""
+          }
+  - name: 500 Response
+    description: Erro interno
+    request:
+      url: "{{baseUrl}}/metrics/wip"
+      method: GET
+      params:
+        - name: project_id
+          value: ""
+          type: query
+          disabled: true
+        - name: group_path
+          value: ""
+          type: query
+          disabled: true
+        - name: assignee
+          value: ""
+          type: query
+          disabled: true
+    response:
+      status: 500
+      statusText: Internal Server Error
+      headers:
+        - name: Content-Type
+          value: application/json
+      body:
+        type: json
+        data: |-
+          {
+            "code": "",
+            "message": "",
+            "request_id": ""
+          }

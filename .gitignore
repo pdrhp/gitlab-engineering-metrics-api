@@ -1,0 +1,19 @@
+.worktrees/
+.env
+*.log
+.DS_Store
+node_modules/
+vendor/
+dist/
+build/
+# Logs
+logs/*.log
+logs/*.log.*
+!logs/.gitkeep
+/tmp
+
+# Outros arquivos
+.env
+*.exe
+dist/
+

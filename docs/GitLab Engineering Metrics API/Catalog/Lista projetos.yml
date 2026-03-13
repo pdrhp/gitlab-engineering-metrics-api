@@ -1,0 +1,121 @@
+info:
+  name: Lista projetos
+  type: http
+  seq: 1
+  tags:
+    - Catalog
+
+http:
+  method: GET
+  url: "{{baseUrl}}/projects"
+  params:
+    - name: search
+      value: ""
+      type: query
+      disabled: true
+    - name: group_path
+      value: ""
+      type: query
+      disabled: true
+  auth: inherit
+
+runtime:
+  variables:
+    - name: baseUrl
+      value: ""
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+examples:
+  - name: 200 Response
+    description: Lista de projetos
+    request:
+      url: "{{baseUrl}}/projects"
+      method: GET
+      params:
+        - name: search
+          value: ""
+          type: query
+          disabled: true
+        - name: group_path
+          value: ""
+          type: query
+          disabled: true
+    response:
+      status: 200
+      statusText: OK
+      headers:
+        - name: Content-Type
+          value: application/json
+      body:
+        type: json
+        data: |-
+          [
+            {
+              "id": 0,
+              "name": "",
+              "path": "",
+              "total_issues": 0,
+              "last_synced_at": ""
+            }
+          ]
+  - name: 401 Response
+    description: Credenciais ausentes ou invalidas
+    request:
+      url: "{{baseUrl}}/projects"
+      method: GET
+      params:
+        - name: search
+          value: ""
+          type: query
+          disabled: true
+        - name: group_path
+          value: ""
+          type: query
+          disabled: true
+    response:
+      status: 401
+      statusText: Unauthorized
+      headers:
+        - name: Content-Type
+          value: application/json
+      body:
+        type: json
+        data: |-
+          {
+            "code": "",
+            "message": "",
+            "request_id": ""
+          }
+  - name: 500 Response
+    description: Erro interno
+    request:
+      url: "{{baseUrl}}/projects"
+      method: GET
+      params:
+        - name: search
+          value: ""
+          type: query
+          disabled: true
+        - name: group_path
+          value: ""
+          type: query
+          disabled: true
+    response:
+      status: 500
+      statusText: Internal Server Error
+      headers:
+        - name: Content-Type
+          value: application/json
+      body:
+        type: json
+        data: |-
+          {
+            "code": "",
+            "message": "",
+            "request_id": ""
+          }

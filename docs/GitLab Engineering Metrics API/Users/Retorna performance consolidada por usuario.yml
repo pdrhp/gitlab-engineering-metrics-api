@@ -1,0 +1,232 @@
+info:
+  name: Retorna performance consolidada por usuario
+  type: http
+  seq: 1
+  tags:
+    - Users
+
+http:
+  method: GET
+  url: "{{baseUrl}}/users/{{username}}/performance"
+  params:
+    - name: start_date
+      value: 2026-01-01
+      type: query
+      disabled: true
+    - name: end_date
+      value: 2026-01-31
+      type: query
+      disabled: true
+    - name: project_id
+      value: ""
+      type: query
+      disabled: true
+  auth: inherit
+
+runtime:
+  variables:
+    - name: username
+      value: ianfelps
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+examples:
+  - name: 200 Response
+    description: Performance consolidada do usuario
+    request:
+      url: "{{baseUrl}}/users/ianfelps/performance"
+      method: GET
+      params:
+        - name: username
+          value: ianfelps
+          type: path
+        - name: start_date
+          value: 2026-01-01
+          type: query
+        - name: end_date
+          value: 2026-01-31
+          type: query
+        - name: project_id
+          value: ""
+          type: query
+          disabled: true
+    response:
+      status: 200
+      statusText: OK
+      headers:
+        - name: Content-Type
+          value: application/json
+      body:
+        type: json
+        data: |-
+          {
+            "user": {
+              "username": "ianfelps",
+              "display_name": "ianfelps",
+              "active_issues": 24,
+              "completed_issues_last_30_days": 103
+            },
+            "period": {
+              "start_date": "2026-01-01",
+              "end_date": "2026-01-31"
+            },
+            "delivery": {
+              "throughput": {
+                "total_issues_done": 20,
+                "avg_per_week": 5
+              },
+              "speed_metrics_days": {
+                "lead_time": {
+                  "avg": 20.15,
+                  "p85": 41.22
+                },
+                "cycle_time": {
+                  "avg": 11.40,
+                  "p85": 19.03
+                }
+              }
+            },
+            "quality": {
+              "rework": {
+                "ping_pong_rate_pct": 35,
+                "total_reworked_issues": 7,
+                "avg_rework_cycles_per_issue": 1.2
+              },
+              "ghost_work": {
+                "rate_pct": 5
+              },
+              "process_health": {
+                "bypass_rate_pct": 5,
+                "first_time_pass_rate_pct": 65
+              },
+              "bottlenecks": {
+                "total_blocked_time_hours": 48,
+                "avg_blocked_time_per_issue_hours": 6
+              },
+              "defects": {
+                "bug_ratio_pct": 10
+              }
+            },
+            "wip": {
+              "current_wip": {
+                "in_progress": 3,
+                "qa_review": 2,
+                "blocked": 0
+              },
+              "aging_wip": []
+            }
+          }
+  - name: 400 Response
+    description: Parametros invalidos
+    request:
+      url: "{{baseUrl}}/users/ianfelps/performance"
+      method: GET
+      params:
+        - name: username
+          value: ianfelps
+          type: path
+        - name: start_date
+          value: invalid
+          type: query
+        - name: end_date
+          value: 2026-01-31
+          type: query
+    response:
+      status: 400
+      statusText: Bad Request
+      headers:
+        - name: Content-Type
+          value: application/json
+      body:
+        type: json
+        data: |-
+          {
+            "code": "BAD_REQUEST",
+            "message": "invalid start_date format, expected YYYY-MM-DD",
+            "request_id": ""
+          }
+  - name: 401 Response
+    description: Credenciais ausentes ou invalidas
+    request:
+      url: "{{baseUrl}}/users/ianfelps/performance"
+      method: GET
+      params:
+        - name: username
+          value: ianfelps
+          type: path
+    response:
+      status: 401
+      statusText: Unauthorized
+      headers:
+        - name: Content-Type
+          value: application/json
+      body:
+        type: json
+        data: |-
+          {
+            "code": "UNAUTHORIZED",
+            "message": "",
+            "request_id": ""
+          }
+  - name: 404 Response
+    description: Usuario nao encontrado
+    request:
+      url: "{{baseUrl}}/users/usuario-inexistente/performance"
+      method: GET
+      params:
+        - name: username
+          value: usuario-inexistente
+          type: path
+        - name: start_date
+          value: 2026-01-01
+          type: query
+        - name: end_date
+          value: 2026-01-31
+          type: query
+    response:
+      status: 404
+      statusText: Not Found
+      headers:
+        - name: Content-Type
+          value: application/json
+      body:
+        type: json
+        data: |-
+          {
+            "code": "NOT_FOUND",
+            "message": "user not found",
+            "request_id": ""
+          }
+  - name: 500 Response
+    description: Erro interno
+    request:
+      url: "{{baseUrl}}/users/ianfelps/performance"
+      method: GET
+      params:
+        - name: username
+          value: ianfelps
+          type: path
+        - name: start_date
+          value: 2026-01-01
+          type: query
+        - name: end_date
+          value: 2026-01-31
+          type: query
+    response:
+      status: 500
+      statusText: Internal Server Error
+      headers:
+        - name: Content-Type
+          value: application/json
+      body:
+        type: json
+        data: |-
+          {
+            "code": "INTERNAL_ERROR",
+            "message": "Internal server error",
+            "request_id": ""
+          }

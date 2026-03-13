@@ -1,0 +1,209 @@
+info:
+  name: Retorna deep dive de ghost work
+  type: http
+  seq: 4
+  tags:
+    - Metrics
+
+http:
+  method: GET
+  url: "{{baseUrl}}/metrics/ghost-work"
+  params:
+    - name: start_date
+      value: 2026-01-01
+      type: query
+      disabled: true
+    - name: end_date
+      value: 2026-01-31
+      type: query
+      disabled: true
+    - name: project_id
+      value: ""
+      type: query
+      disabled: true
+    - name: group_path
+      value: ""
+      type: query
+      disabled: true
+    - name: assignee
+      value: nevez
+      type: query
+      disabled: true
+    - name: issue_id
+      value: ""
+      type: query
+      disabled: true
+    - name: gitlab_issue_id
+      value: ""
+      type: query
+      disabled: true
+    - name: issue_iid
+      value: ""
+      type: query
+      disabled: true
+    - name: page
+      value: "1"
+      type: query
+      disabled: true
+    - name: page_size
+      value: "25"
+      type: query
+      disabled: true
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+examples:
+  - name: 200 Response
+    description: Deep dive de ghost work com lista de issues e analises
+    request:
+      url: "{{baseUrl}}/metrics/ghost-work"
+      method: GET
+      params:
+        - name: start_date
+          value: 2026-01-01
+          type: query
+        - name: end_date
+          value: 2026-01-31
+          type: query
+        - name: page
+          value: "1"
+          type: query
+        - name: page_size
+          value: "10"
+          type: query
+    response:
+      status: 200
+      statusText: OK
+      headers:
+        - name: Content-Type
+          value: application/json
+      body:
+        type: json
+        data: |-
+          {
+            "total_issues": 270,
+            "period": {
+              "start_date": "2026-01-01",
+              "end_date": "2026-01-31"
+            },
+            "issues": [
+              {
+                "issue_id": 123,
+                "gitlab_issue_id": 456,
+                "issue_iid": 371,
+                "project_id": 789,
+                "project_path": "apps-expo/dflegal-expo",
+                "issue_title": "[PASTA DE TRABALHO] - Filtragem de Ordens de Serviço...",
+                "assignees": ["gabriel"],
+                "from_state": "BACKLOG",
+                "to_state": "QA_REVIEW",
+                "transition_time": "2026-03-06T14:17:15.282Z",
+                "duration_hours": 0.01,
+                "current_state": "DONE",
+                "final_done_at": "2026-03-06T20:02:32.541Z"
+              }
+            ],
+            "transition_analysis": [
+              {
+                "from_state": "BACKLOG",
+                "to_state": "QA_REVIEW",
+                "count": 432
+              },
+              {
+                "from_state": "BACKLOG",
+                "to_state": "DONE",
+                "count": 26
+              }
+            ],
+            "breakdown_by_user": [
+              {
+                "username": "nevez",
+                "ghost_work_count": 50,
+                "issue_iids": [371, 369, 364, 360, 355]
+              },
+              {
+                "username": "gabriel",
+                "ghost_work_count": 32,
+                "issue_iids": [371, 369, 364]
+              }
+            ],
+            "page": 1,
+            "page_size": 10,
+            "total_pages": 27
+          }
+  - name: 400 Response
+    description: Parametros invalidos
+    request:
+      url: "{{baseUrl}}/metrics/ghost-work"
+      method: GET
+      params:
+        - name: start_date
+          value: invalid
+          type: query
+        - name: end_date
+          value: 2026-01-31
+          type: query
+    response:
+      status: 400
+      statusText: Bad Request
+      headers:
+        - name: Content-Type
+          value: application/json
+      body:
+        type: json
+        data: |-
+          {
+            "code": "BAD_REQUEST",
+            "message": "invalid start_date format, expected YYYY-MM-DD",
+            "request_id": ""
+          }
+  - name: 401 Response
+    description: Credenciais ausentes ou invalidas
+    request:
+      url: "{{baseUrl}}/metrics/ghost-work"
+      method: GET
+    response:
+      status: 401
+      statusText: Unauthorized
+      headers:
+        - name: Content-Type
+          value: application/json
+      body:
+        type: json
+        data: |-
+          {
+            "code": "UNAUTHORIZED",
+            "message": "",
+            "request_id": ""
+          }
+  - name: 500 Response
+    description: Erro interno
+    request:
+      url: "{{baseUrl}}/metrics/ghost-work"
+      method: GET
+      params:
+        - name: start_date
+          value: 2026-01-01
+          type: query
+        - name: end_date
+          value: 2026-01-31
+          type: query
+    response:
+      status: 500
+      statusText: Internal Server Error
+      headers:
+        - name: Content-Type
+          value: application/json
+      body:
+        type: json
+        data: |-
+          {
+            "code": "INTERNAL_ERROR",
+            "message": "Internal server error",
+            "request_id": ""
+          }

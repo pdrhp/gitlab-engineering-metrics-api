@@ -1,0 +1,247 @@
+info:
+  name: Retorna metricas de delivery
+  type: http
+  seq: 1
+  tags:
+    - Metrics
+
+http:
+  method: GET
+  url: "{{baseUrl}}/metrics/delivery"
+  params:
+    - name: start_date
+      value: ""
+      type: query
+    - name: end_date
+      value: ""
+      type: query
+    - name: project_id
+      value: ""
+      type: query
+      disabled: true
+    - name: group_path
+      value: ""
+      type: query
+      disabled: true
+    - name: assignee
+      value: ""
+      type: query
+      disabled: true
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+examples:
+  - name: 200 Response
+    description: Metricas de delivery
+    request:
+      url: "{{baseUrl}}/metrics/delivery"
+      method: GET
+      params:
+        - name: start_date
+          value: ""
+          type: query
+        - name: end_date
+          value: ""
+          type: query
+        - name: project_id
+          value: ""
+          type: query
+          disabled: true
+        - name: group_path
+          value: ""
+          type: query
+          disabled: true
+        - name: assignee
+          value: ""
+          type: query
+          disabled: true
+    response:
+      status: 200
+      statusText: OK
+      headers:
+        - name: Content-Type
+          value: application/json
+      body:
+        type: json
+        data: |-
+          {
+            "period": {
+              "start_date": "",
+              "end_date": ""
+            },
+            "throughput": {
+              "total_issues_done": 0,
+              "avg_per_week": 0
+            },
+            "speed_metrics_days": {
+              "lead_time": {
+                "avg": 0,
+                "p85": 0
+              },
+              "cycle_time": {}
+            },
+            "breakdown_by_assignee": [
+              {
+                "assignee": "",
+                "issues_delivered": 0,
+                "avg_cycle_time": 0
+              }
+            ]
+          }
+  - name: 400 Response
+    description: Parametros invalidos
+    request:
+      url: "{{baseUrl}}/metrics/delivery"
+      method: GET
+      params:
+        - name: start_date
+          value: ""
+          type: query
+        - name: end_date
+          value: ""
+          type: query
+        - name: project_id
+          value: ""
+          type: query
+          disabled: true
+        - name: group_path
+          value: ""
+          type: query
+          disabled: true
+        - name: assignee
+          value: ""
+          type: query
+          disabled: true
+    response:
+      status: 400
+      statusText: Bad Request
+      headers:
+        - name: Content-Type
+          value: application/json
+      body:
+        type: json
+        data: |-
+          {
+            "code": "",
+            "message": "",
+            "request_id": ""
+          }
+  - name: 401 Response
+    description: Credenciais ausentes ou invalidas
+    request:
+      url: "{{baseUrl}}/metrics/delivery"
+      method: GET
+      params:
+        - name: start_date
+          value: ""
+          type: query
+        - name: end_date
+          value: ""
+          type: query
+        - name: project_id
+          value: ""
+          type: query
+          disabled: true
+        - name: group_path
+          value: ""
+          type: query
+          disabled: true
+        - name: assignee
+          value: ""
+          type: query
+          disabled: true
+    response:
+      status: 401
+      statusText: Unauthorized
+      headers:
+        - name: Content-Type
+          value: application/json
+      body:
+        type: json
+        data: |-
+          {
+            "code": "",
+            "message": "",
+            "request_id": ""
+          }
+  - name: 422 Response
+    description: Filtros semanticamente invalidos
+    request:
+      url: "{{baseUrl}}/metrics/delivery"
+      method: GET
+      params:
+        - name: start_date
+          value: ""
+          type: query
+        - name: end_date
+          value: ""
+          type: query
+        - name: project_id
+          value: ""
+          type: query
+          disabled: true
+        - name: group_path
+          value: ""
+          type: query
+          disabled: true
+        - name: assignee
+          value: ""
+          type: query
+          disabled: true
+    response:
+      status: 422
+      statusText: Unprocessable Entity
+      headers:
+        - name: Content-Type
+          value: application/json
+      body:
+        type: json
+        data: |-
+          {
+            "code": "",
+            "message": "",
+            "request_id": ""
+          }
+  - name: 500 Response
+    description: Erro interno
+    request:
+      url: "{{baseUrl}}/metrics/delivery"
+      method: GET
+      params:
+        - name: start_date
+          value: ""
+          type: query
+        - name: end_date
+          value: ""
+          type: query
+        - name: project_id
+          value: ""
+          type: query
+          disabled: true
+        - name: group_path
+          value: ""
+          type: query
+          disabled: true
+        - name: assignee
+          value: ""
+          type: query
+          disabled: true
+    response:
+      status: 500
+      statusText: Internal Server Error
+      headers:
+        - name: Content-Type
+          value: application/json
+      body:
+        type: json
+        data: |-
+          {
+            "code": "",
+            "message": "",
+            "request_id": ""
+          }
