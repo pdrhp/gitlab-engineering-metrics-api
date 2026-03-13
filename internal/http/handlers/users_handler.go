@@ -28,8 +28,17 @@ func (h *UsersHandler) List(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Parse query parameters
+	search := r.URL.Query().Get("search")
+
+	// Validate search term
+	if search != "" && len(search) < 3 {
+		requestID := middleware.GetRequestID(r.Context())
+		responses.BadRequest(w, requestID, "search term must be at least 3 characters")
+		return
+	}
+
 	filter := domain.CatalogFilter{
-		Search:    r.URL.Query().Get("search"),
+		Search:    search,
 		GroupPath: r.URL.Query().Get("group_path"),
 	}
 

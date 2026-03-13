@@ -4,12 +4,19 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"regexp"
 	"strconv"
 
 	"gitlab-engineering-metrics-api/internal/domain"
 	"gitlab-engineering-metrics-api/internal/http/middleware"
 	"gitlab-engineering-metrics-api/internal/http/responses"
 )
+
+var dateFormatRegex = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}$`)
+
+func isValidDateFormat(date string) bool {
+	return dateFormatRegex.MatchString(date)
+}
 
 // GhostWorkService defines the interface for ghost work operations
 type GhostWorkService interface {
@@ -37,10 +44,29 @@ func (h *GhostWorkHandler) Get(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Parse query parameters
+	startDate := r.URL.Query().Get("start_date")
+	endDate := r.URL.Query().Get("end_date")
+
+	// Validate date parameters
+	if (startDate != "" && endDate == "") || (startDate == "" && endDate != "") {
+		responses.BadRequest(w, requestID, "both start_date and end_date are required when filtering by date")
+		return
+	}
+
+	// Validate date format if provided
+	if startDate != "" && !isValidDateFormat(startDate) {
+		responses.BadRequest(w, requestID, "invalid start_date format, expected YYYY-MM-DD")
+		return
+	}
+	if endDate != "" && !isValidDateFormat(endDate) {
+		responses.BadRequest(w, requestID, "invalid end_date format, expected YYYY-MM-DD")
+		return
+	}
+
 	filter := domain.GhostWorkFilter{
 		MetricsFilter: domain.MetricsFilter{
-			StartDate: r.URL.Query().Get("start_date"),
-			EndDate:   r.URL.Query().Get("end_date"),
+			StartDate: startDate,
+			EndDate:   endDate,
 			GroupPath: r.URL.Query().Get("group_path"),
 			Assignee:  r.URL.Query().Get("assignee"),
 		},

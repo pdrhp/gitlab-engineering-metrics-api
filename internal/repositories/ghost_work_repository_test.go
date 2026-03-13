@@ -78,24 +78,26 @@ func TestGhostWorkRepository_BuildFilterConditions(t *testing.T) {
 
 	tests := []struct {
 		name             string
-		filter           domain.MetricsFilter
+		filter           domain.GhostWorkFilter
 		expectedCondsLen int
 		expectedArgsLen  int
 	}{
 		{
 			name:             "empty filter",
-			filter:           domain.MetricsFilter{},
+			filter:           domain.GhostWorkFilter{},
 			expectedCondsLen: 0,
 			expectedArgsLen:  0,
 		},
 		{
 			name: "all filters set",
-			filter: domain.MetricsFilter{
-				StartDate: "2024-01-01",
-				EndDate:   "2024-12-31",
-				GroupPath: "engineering",
-				ProjectID: 1,
-				Assignee:  "user@example.com",
+			filter: domain.GhostWorkFilter{
+				MetricsFilter: domain.MetricsFilter{
+					StartDate: "2024-01-01",
+					EndDate:   "2024-12-31",
+					GroupPath: "engineering",
+					ProjectID: 1,
+					Assignee:  "user@example.com",
+				},
 			},
 			expectedCondsLen: 5,
 			expectedArgsLen:  5,

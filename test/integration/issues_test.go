@@ -28,6 +28,7 @@ func TestIssues_List_Success(t *testing.T) {
 				CycleTimeDays:         3.2,
 				BlockedTimeHours:      2.5,
 				QAToDevReturnCount:    1,
+			},
 			{
 				IssueID:               2,
 				ProjectID:             101,
