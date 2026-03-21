@@ -53,7 +53,7 @@ func (h *WipHandler) Get(w http.ResponseWriter, r *http.Request) {
 			err.Error() == "invalid start_date format, expected YYYY-MM-DD" ||
 			err.Error() == "invalid end_date format, expected YYYY-MM-DD" ||
 			err.Error() == "end_date must be after start_date" ||
-			err.Error() == "date range cannot exceed 90 days" {
+			err.Error() == "date range cannot exceed 366 days" {
 			responses.BadRequest(w, requestID, err.Error())
 			return
 		}

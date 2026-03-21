@@ -118,6 +118,7 @@ func (a *App) registerMetricsRoutes(mux *http.ServeMux) {
 	authMiddleware := middleware.Auth(a.validator)
 
 	mux.Handle("/api/v1/metrics/delivery", authMiddleware(http.HandlerFunc(deliveryHandler.Get)))
+	mux.Handle("/api/v1/metrics/delivery/trend", authMiddleware(http.HandlerFunc(handlers.NewDeliveryTrendHandler(metricsService).Get)))
 	mux.Handle("/api/v1/metrics/quality", authMiddleware(http.HandlerFunc(qualityHandler.Get)))
 	mux.Handle("/api/v1/metrics/wip", authMiddleware(http.HandlerFunc(wipHandler.Get)))
 	mux.Handle("/api/v1/metrics/ghost-work", authMiddleware(http.HandlerFunc(ghostWorkHandler.Get)))

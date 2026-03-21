@@ -125,11 +125,11 @@ func TestGhostWorkService_GetGhostWorkMetrics(t *testing.T) {
 			filter: domain.GhostWorkFilter{
 				MetricsFilter: domain.MetricsFilter{
 					StartDate: "2024-01-01",
-					EndDate:   "2024-06-01",
+					EndDate:   "2025-02-01",
 				},
 			},
 			wantErr:     true,
-			errContains: "cannot exceed 90 days",
+			errContains: "cannot exceed 366 days",
 		},
 	}
 

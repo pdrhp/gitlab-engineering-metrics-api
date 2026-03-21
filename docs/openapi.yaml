@@ -103,9 +103,11 @@ paths:
     get:
       tags: [Metrics]
       summary: Retorna metricas de delivery
+      description: |
+        Se start_date e end_date nao forem fornecidos, retorna dados dos ultimos 90 dias.
       parameters:
-        - $ref: '#/components/parameters/StartDate'
-        - $ref: '#/components/parameters/EndDate'
+        - $ref: '#/components/parameters/StartDateOptional'
+        - $ref: '#/components/parameters/EndDateOptional'
         - $ref: '#/components/parameters/ProjectId'
         - $ref: '#/components/parameters/GroupPath'
         - $ref: '#/components/parameters/Assignee'
@@ -124,13 +126,108 @@ paths:
           $ref: '#/components/responses/UnprocessableFilter'
         '500':
           $ref: '#/components/responses/InternalError'
+  /metrics/delivery/trend:
+    get:
+      tags: [Metrics]
+      summary: Retorna serie temporal de delivery para analise de correlacao
+      description: |
+        Retorna dados por periodo (bucket) para correlacionar throughput com
+        lead time e cycle time ao longo do tempo.
+      parameters:
+        - $ref: '#/components/parameters/StartDate'
+        - $ref: '#/components/parameters/EndDate'
+        - $ref: '#/components/parameters/ProjectId'
+        - $ref: '#/components/parameters/GroupPath'
+        - $ref: '#/components/parameters/Assignee'
+        - in: query
+          name: bucket
+          required: false
+          schema:
+            type: string
+            enum: [day, week, month]
+            default: week
+          description: Granularidade da serie temporal.
+        - in: query
+          name: timezone
+          required: false
+          schema:
+            type: string
+            default: UTC
+            example: America/Sao_Paulo
+          description: Timezone IANA usado para agrupamento dos buckets.
+        - in: query
+          name: include_empty_buckets
+          required: false
+          schema:
+            type: boolean
+            default: true
+          description: |
+            Quando true, inclui buckets sem entregas com throughput=0 e metricas de tempo nulas.
+      responses:
+        '200':
+          description: Serie temporal de delivery
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeliveryTrendResponse'
+              examples:
+                weekly_example:
+                  summary: Exemplo semanal
+                  value:
+                    period:
+                      start_date: "2026-02-01"
+                      end_date: "2026-03-01"
+                    bucket: "week"
+                    timezone: "America/Sao_Paulo"
+                    filters_applied:
+                      group_path: "apps-android"
+                      project_id: 19
+                      assignee: null
+                    items:
+                      - bucket_start: "2026-02-02"
+                        bucket_end: "2026-02-08"
+                        bucket_label: "2026-W06"
+                        throughput:
+                          total_issues_done: 14
+                        speed_metrics_days:
+                          lead_time:
+                            avg: 13.8
+                            p85: 21.2
+                          cycle_time:
+                            avg: 8.7
+                            p85: 14.9
+                      - bucket_start: "2026-02-09"
+                        bucket_end: "2026-02-15"
+                        bucket_label: "2026-W07"
+                        throughput:
+                          total_issues_done: 19
+                        speed_metrics_days:
+                          lead_time:
+                            avg: 12.6
+                            p85: 19.4
+                          cycle_time:
+                            avg: 7.9
+                            p85: 13.8
+                    correlation:
+                      throughput_vs_lead_time_r: -0.62
+                      throughput_vs_cycle_time_r: -0.58
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/UnprocessableFilter'
+        '500':
+          $ref: '#/components/responses/InternalError'
   /metrics/quality:
     get:
       tags: [Metrics]
       summary: Retorna metricas de qualidade e gargalos
+      description: |
+        Se start_date e end_date nao forem fornecidos, retorna dados dos ultimos 90 dias.
       parameters:
-        - $ref: '#/components/parameters/StartDate'
-        - $ref: '#/components/parameters/EndDate'
+        - $ref: '#/components/parameters/StartDateOptional'
+        - $ref: '#/components/parameters/EndDateOptional'
         - $ref: '#/components/parameters/ProjectId'
         - $ref: '#/components/parameters/GroupPath'
       responses:
@@ -728,6 +825,15 @@ components:
           type: integer
         days_in_state:
           type: integer
+        has_bypass:
+          type: boolean
+          description: Indica se a issue passou por bypass (backlog -> done sem QA)
+        has_rework:
+          type: boolean
+          description: Indica se a issue passou por rework (QA -> Dev)
+        was_blocked:
+          type: boolean
+          description: Indica se a issue foi bloqueada em algum momento
     IssueTimelineResponse:
       type: object
       properties:
@@ -992,3 +1098,97 @@ components:
           type: integer
         total_pages:
           type: integer
+    DeliveryTrendPoint:
+      type: object
+      required:
+        - bucket_start
+        - bucket_end
+        - bucket_label
+        - throughput
+        - speed_metrics_days
+      properties:
+        bucket_start:
+          type: string
+          format: date
+          description: Data inicial do bucket (inclusiva, no timezone solicitado).
+        bucket_end:
+          type: string
+          format: date
+          description: Data final do bucket (inclusiva, no timezone solicitado).
+        bucket_label:
+          type: string
+          description: Label amigavel para visualizacao (ex. 2026-W06, 2026-02-10, 2026-02).
+        throughput:
+          type: object
+          required: [total_issues_done]
+          properties:
+            total_issues_done:
+              type: integer
+              minimum: 0
+        speed_metrics_days:
+          type: object
+          required: [lead_time, cycle_time]
+          properties:
+            lead_time:
+              $ref: '#/components/schemas/AvgP85MetricNullable'
+            cycle_time:
+              $ref: '#/components/schemas/AvgP85MetricNullable'
+    AvgP85MetricNullable:
+      type: object
+      properties:
+        avg:
+          type: number
+          format: float
+          nullable: true
+          description: Nulo quando nao houver issues finalizadas no bucket.
+        p85:
+          type: number
+          format: float
+          nullable: true
+          description: Nulo quando nao houver base estatistica suficiente.
+    DeliveryTrendCorrelation:
+      type: object
+      properties:
+        throughput_vs_lead_time_r:
+          type: number
+          format: float
+          nullable: true
+          minimum: -1
+          maximum: 1
+          description: Correlacao de Pearson entre throughput e lead_time.avg.
+        throughput_vs_cycle_time_r:
+          type: number
+          format: float
+          nullable: true
+          minimum: -1
+          maximum: 1
+          description: Correlacao de Pearson entre throughput e cycle_time.avg.
+    DeliveryTrendResponse:
+      type: object
+      required: [period, bucket, timezone, items]
+      properties:
+        period:
+          $ref: '#/components/schemas/Period'
+        bucket:
+          type: string
+          enum: [day, week, month]
+        timezone:
+          type: string
+        filters_applied:
+          type: object
+          properties:
+            group_path:
+              type: string
+              nullable: true
+            project_id:
+              type: integer
+              nullable: true
+            assignee:
+              type: string
+              nullable: true
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/DeliveryTrendPoint'
+        correlation:
+          $ref: '#/components/schemas/DeliveryTrendCorrelation'

@@ -1,0 +1,217 @@
+info:
+  name: Retorna serie temporal de delivery para correlacao
+  type: http
+  seq: 2
+  tags:
+    - Metrics
+
+http:
+  method: GET
+  url: "{{baseUrl}}/metrics/delivery/trend"
+  params:
+    - name: start_date
+      value: 2026-02-01
+      type: query
+      disabled: true
+    - name: end_date
+      value: 2026-03-01
+      type: query
+      disabled: true
+    - name: bucket
+      value: week
+      type: query
+      disabled: true
+    - name: timezone
+      value: America/Sao_Paulo
+      type: query
+      disabled: true
+    - name: include_empty_buckets
+      value: "true"
+      type: query
+      disabled: true
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+examples:
+  - name: 200 Response
+    description: Serie temporal de delivery
+    request:
+      url: "{{baseUrl}}/metrics/delivery/trend"
+      method: GET
+      params:
+        - name: start_date
+          value: 2026-02-01
+          type: query
+        - name: end_date
+          value: 2026-03-01
+          type: query
+        - name: bucket
+          value: week
+          type: query
+        - name: timezone
+          value: America/Sao_Paulo
+          type: query
+        - name: include_empty_buckets
+          value: "true"
+          type: query
+    response:
+      status: 200
+      statusText: OK
+      headers:
+        - name: Content-Type
+          value: application/json
+      body:
+        type: json
+        data: |-
+          {
+            "period": {
+              "start_date": "2026-02-01",
+              "end_date": "2026-03-01"
+            },
+            "bucket": "week",
+            "timezone": "America/Sao_Paulo",
+            "filters_applied": {
+              "group_path": null,
+              "project_id": null,
+              "assignee": null
+            },
+            "items": [
+              {
+                "bucket_start": "2026-02-02",
+                "bucket_end": "2026-02-08",
+                "bucket_label": "2026-W06",
+                "throughput": {
+                  "total_issues_done": 14
+                },
+                "speed_metrics_days": {
+                  "lead_time": {
+                    "avg": 13.8,
+                    "p85": 21.2
+                  },
+                  "cycle_time": {
+                    "avg": 8.7,
+                    "p85": 14.9
+                  }
+                }
+              }
+            ],
+            "correlation": {
+              "throughput_vs_lead_time_r": -0.62,
+              "throughput_vs_cycle_time_r": -0.58
+            }
+          }
+  - name: 400 Response
+    description: Parametros invalidos
+    request:
+      url: "{{baseUrl}}/metrics/delivery/trend"
+      method: GET
+      params:
+        - name: start_date
+          value: invalid
+          type: query
+        - name: end_date
+          value: 2026-03-01
+          type: query
+    response:
+      status: 400
+      statusText: Bad Request
+      headers:
+        - name: Content-Type
+          value: application/json
+      body:
+        type: json
+        data: |-
+          {
+            "code": "BAD_REQUEST",
+            "message": "invalid start_date format, expected YYYY-MM-DD",
+            "request_id": "abc-123"
+          }
+  - name: 401 Response
+    description: Credenciais ausentes ou invalidas
+    request:
+      url: "{{baseUrl}}/metrics/delivery/trend"
+      method: GET
+      params:
+        - name: start_date
+          value: 2026-02-01
+          type: query
+        - name: end_date
+          value: 2026-03-01
+          type: query
+    response:
+      status: 401
+      statusText: Unauthorized
+      headers:
+        - name: Content-Type
+          value: application/json
+      body:
+        type: json
+        data: |-
+          {
+            "code": "UNAUTHORIZED",
+            "message": "Authentication required",
+            "request_id": "abc-123"
+          }
+  - name: 422 Response
+    description: Filtros semanticamente invalidos
+    request:
+      url: "{{baseUrl}}/metrics/delivery/trend"
+      method: GET
+      params:
+        - name: start_date
+          value: 2026-02-01
+          type: query
+        - name: end_date
+          value: 2026-03-01
+          type: query
+        - name: project_id
+          value: "275"
+          type: query
+        - name: group_path
+          value: web
+          type: query
+    response:
+      status: 422
+      statusText: Unprocessable Entity
+      headers:
+        - name: Content-Type
+          value: application/json
+      body:
+        type: json
+        data: |-
+          {
+            "code": "VALIDATION_ERROR",
+            "message": "project_id 275 does not belong to group_path web",
+            "request_id": "abc-123"
+          }
+  - name: 500 Response
+    description: Erro interno
+    request:
+      url: "{{baseUrl}}/metrics/delivery/trend"
+      method: GET
+      params:
+        - name: start_date
+          value: 2026-02-01
+          type: query
+        - name: end_date
+          value: 2026-03-01
+          type: query
+    response:
+      status: 500
+      statusText: Internal Server Error
+      headers:
+        - name: Content-Type
+          value: application/json
+      body:
+        type: json
+        data: |-
+          {
+            "code": "INTERNAL_ERROR",
+            "message": "Internal server error",
+            "request_id": "abc-123"
+          }

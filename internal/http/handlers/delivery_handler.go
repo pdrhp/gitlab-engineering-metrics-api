@@ -20,6 +20,7 @@ type MetricsService interface {
 	GetDeliveryMetrics(ctx context.Context, filter domain.MetricsFilter) (*domain.DeliveryMetricsResponse, error)
 	GetQualityMetrics(ctx context.Context, filter domain.MetricsFilter) (*domain.QualityMetricsResponse, error)
 	GetWipMetrics(ctx context.Context, filter domain.MetricsFilter) (*domain.WipMetricsResponse, error)
+	GetDeliveryTrendMetrics(ctx context.Context, filter domain.DeliveryTrendFilter) (*domain.DeliveryTrendResponse, error)
 }
 
 // DeliveryHandler handles delivery metrics HTTP requests
@@ -95,7 +96,8 @@ func (h *DeliveryHandler) Get(w http.ResponseWriter, r *http.Request) {
 			err.Error() == "invalid start_date format, expected YYYY-MM-DD" ||
 			err.Error() == "invalid end_date format, expected YYYY-MM-DD" ||
 			err.Error() == "end_date must be after start_date" ||
-			err.Error() == "date range cannot exceed 90 days" {
+			err.Error() == "date range cannot exceed 90 days" ||
+			err.Error() == "date range cannot exceed 366 days" {
 			deliveryLogger.Warn("validation error",
 				slog.String("error", err.Error()),
 				slog.String("request_id", requestID),

@@ -301,3 +301,100 @@ func TestMetrics_WithAssignee(t *testing.T) {
 
 	AssertStatusCode(t, resp, http.StatusOK)
 }
+
+func TestMetrics_DeliveryTrend_Success(t *testing.T) {
+	ts := SetupTestServer(t)
+	defer TeardownTestServer(ts)
+
+	ts.Builder.MetricsService.DeliveryTrend = &domain.DeliveryTrendResponse{
+		Bucket:   "week",
+		Timezone: "UTC",
+		Period: domain.Period{
+			StartDate: "2026-02-01",
+			EndDate:   "2026-03-01",
+		},
+		Items: []domain.DeliveryTrendPoint{
+			{
+				BucketStart: "2026-02-02",
+				BucketEnd:   "2026-02-08",
+				BucketLabel: "2026-W06",
+				Throughput:  domain.DeliveryTrendThroughput{TotalIssuesDone: 14},
+				SpeedMetricsDays: domain.DeliveryTrendSpeedMetrics{
+					LeadTime:  domain.AvgP85MetricNullable{Avg: floatPtr(13.8), P85: floatPtr(21.2)},
+					CycleTime: domain.AvgP85MetricNullable{Avg: floatPtr(8.7), P85: floatPtr(14.9)},
+				},
+			},
+		},
+		Correlation: &domain.DeliveryTrendCorrelation{
+			ThroughputVsLeadTimeR:  floatPtr(-0.62),
+			ThroughputVsCycleTimeR: floatPtr(-0.58),
+		},
+	}
+
+	resp := MakeAuthenticatedRequest(t, ts, http.MethodGet, "/api/v1/metrics/delivery/trend?start_date=2026-02-01&end_date=2026-03-01", nil)
+	defer resp.Body.Close()
+	AssertStatusCode(t, resp, http.StatusOK)
+	AssertContentType(t, resp, "application/json")
+
+	var metrics domain.DeliveryTrendResponse
+	ParseResponse(t, resp, &metrics)
+
+	if metrics.Bucket != "week" {
+		t.Errorf("Expected bucket 'week', got %s", metrics.Bucket)
+	}
+	if len(metrics.Items) != 1 {
+		t.Errorf("Expected 1 item, got %d", len(metrics.Items))
+	}
+}
+
+func TestMetrics_DeliveryTrend_WithDateRange(t *testing.T) {
+	ts := SetupTestServer(t)
+	defer TeardownTestServer(ts)
+
+	ts.Builder.MetricsService.DeliveryTrend = &domain.DeliveryTrendResponse{
+		Period: domain.Period{
+			StartDate: "2026-02-01",
+			EndDate:   "2026-03-01",
+		},
+		Items: []domain.DeliveryTrendPoint{},
+	}
+
+	resp := MakeAuthenticatedRequest(t, ts, http.MethodGet, "/api/v1/metrics/delivery/trend?start_date=2026-02-01&end_date=2026-03-01&bucket=day", nil)
+	defer resp.Body.Close()
+	AssertStatusCode(t, resp, http.StatusOK)
+}
+
+func TestMetrics_DeliveryTrend_InvalidBucket(t *testing.T) {
+	ts := SetupTestServer(t)
+	defer TeardownTestServer(ts)
+
+	ts.Builder.MetricsService.Err = errors.New("bucket must be one of: day, week, month")
+
+	resp := MakeAuthenticatedRequest(t, ts, http.MethodGet, "/api/v1/metrics/delivery/trend?start_date=2026-02-01&end_date=2026-03-01&bucket=quarter", nil)
+	defer resp.Body.Close()
+	AssertStatusCode(t, resp, http.StatusBadRequest)
+}
+
+func TestMetrics_DeliveryTrend_ProjectGroupMismatch(t *testing.T) {
+	ts := SetupTestServer(t)
+	defer TeardownTestServer(ts)
+
+	ts.Builder.MetricsService.Err = errors.New("project_id 275 does not belong to group_path web")
+
+	resp := MakeAuthenticatedRequest(t, ts, http.MethodGet, "/api/v1/metrics/delivery/trend?start_date=2026-02-01&end_date=2026-03-01&project_id=275&group_path=web", nil)
+	defer resp.Body.Close()
+	AssertStatusCode(t, resp, http.StatusUnprocessableEntity)
+}
+
+func TestMetrics_DeliveryTrend_Unauthorized(t *testing.T) {
+	ts := SetupTestServer(t)
+	defer TeardownTestServer(ts)
+
+	resp := MakeRequest(t, ts, http.MethodGet, "/api/v1/metrics/delivery/trend?start_date=2026-02-01&end_date=2026-03-01", nil)
+	defer resp.Body.Close()
+	AssertStatusCode(t, resp, http.StatusUnauthorized)
+}
+
+func floatPtr(f float64) *float64 {
+	return &f
+}

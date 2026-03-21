@@ -60,8 +60,8 @@ All referenced error responses use `ErrorResponse`:
 
 - Headers: `X-Client-ID`, `X-Client-Secret`
 - Query params:
-  - `start_date: string(date)` (required)
-  - `end_date: string(date)` (required)
+  - `start_date: string(date)` (optional - defaults to last 366 days if not provided)
+  - `end_date: string(date)` (optional - defaults to current date if not provided)
   - `project_id: integer` (optional)
   - `group_path: string` (optional)
   - `assignee: string` (optional)
@@ -75,8 +75,8 @@ All referenced error responses use `ErrorResponse`:
 
 - Headers: `X-Client-ID`, `X-Client-Secret`
 - Query params:
-  - `start_date: string(date)` (required)
-  - `end_date: string(date)` (required)
+  - `start_date: string(date)` (optional - defaults to last 366 days if not provided)
+  - `end_date: string(date)` (optional - defaults to current date if not provided)
   - `project_id: integer` (optional)
   - `group_path: string` (optional)
 - `200`: `QualityMetricsResponse`
@@ -154,6 +154,44 @@ All referenced error responses use `ErrorResponse`:
 - `400`: `ErrorResponse`
 - `401`: `ErrorResponse`
 - `404`: `ErrorResponse`
+- `422`: `ErrorResponse`
+- `500`: `ErrorResponse`
+
+### GET /metrics/delivery/trend
+
+- Headers: `X-Client-ID`, `X-Client-Secret`
+- Query params:
+  - `start_date: string(date)` (required)
+  - `end_date: string(date)` (required)
+  - `project_id: integer` (optional)
+  - `group_path: string` (optional)
+  - `assignee: string` (optional)
+  - `bucket: string` (optional, enum: `day|week|month`, default: `week`)
+  - `timezone: string` (optional, default: `UTC`)
+  - `include_empty_buckets: boolean` (optional, default: `true`)
+- `200`: `DeliveryTrendResponse`
+- `400`: `ErrorResponse`
+- `401`: `ErrorResponse`
+- `422`: `ErrorResponse`
+- `500`: `ErrorResponse`
+
+### GET /metrics/ghost-work
+
+- Headers: `X-Client-ID`, `X-Client-Secret`
+- Query params:
+  - `start_date: string(date)` (optional)
+  - `end_date: string(date)` (optional)
+  - `project_id: integer` (optional)
+  - `group_path: string` (optional)
+  - `assignee: string` (optional)
+  - `issue_id: integer` (optional)
+  - `gitlab_issue_id: integer` (optional)
+  - `issue_iid: integer` (optional)
+  - `page: integer` (optional, min `1`, default `1`)
+  - `page_size: integer` (optional, min `1`, max `100`, default `25`)
+- `200`: `GhostWorkMetricsResponse`
+- `400`: `ErrorResponse`
+- `401`: `ErrorResponse`
 - `422`: `ErrorResponse`
 - `500`: `ErrorResponse`
 
@@ -662,6 +700,52 @@ curl -H "X-Client-ID: myclient" \
   "aging_wip": [
     {
       "issue_iid": 32,
+      "title": "[DERR - WEB] [Grupo Infração] Alguns usuarios e imei nao aparecem",
+      "current_state": "IN_PROGRESS",
+      "days_in_state": 180,
+      "warning_flag": true,
+      "issue_id": 46,
+      "gitlab_issue_id": 289,
+      "project_id": 10,
+      "project_path": "web/derrj"
+    },
+    {
+      "issue_iid": 6,
+      "title": "[DERR - WEB] [Consulta Infraçoes] Ta faltando o campo de Endereço e KM",
+      "assignees": ["quiasz"],
+      "current_state": "QA_REVIEW",
+      "days_in_state": 158,
+      "warning_flag": true,
+      "issue_id": 26,
+      "gitlab_issue_id": 222,
+      "project_id": 10,
+      "project_path": "web/derrj"
+    },
+    {
+      "issue_iid": 39,
+      "title": "[DERR WEB] - Correção na impressão do BRAT",
+      "assignees": ["vinijr"],
+      "current_state": "QA_REVIEW",
+      "days_in_state": 152,
+      "warning_flag": true,
+      "issue_id": 37,
+      "gitlab_issue_id": 539,
+      "project_id": 10,
+      "project_path": "web/derrj"
+    }
+  ]
+}
+```
+
+```json
+{
+  "current_wip": {
+    "in_progress": 1,
+    "qa_review": 4
+  },
+  "aging_wip": [
+    {
+      "issue_iid": 32,
       "title": "[DERR - WEB] [Grupo Infração] Alguns usuarios e imei nao aparecem. Aparecem em branco. Isso no sistema antigo",
       "current_state": "IN_PROGRESS",
       "days_in_state": 174,
@@ -714,25 +798,43 @@ Request:
 ```bash
 curl -H "X-Client-ID: myclient" \
      -H "X-Client-Secret: mysecret" \
-     "http://localhost:8080/api/v1/issues?page=1&page_size=1"
+     "http://localhost:8080/api/v1/issues?page=1&page_size=2"
 ```
 
 ```json
 {
   "items": [
     {
-      "id": 1,
       "project_id": 93,
-      "issue_iid": 1,
       "title": "Componente Modal Dinâmico",
-      "assignees": [
-        "danilo"
-      ],
-      "current_canonical_state": "UNKNOWN"
+      "assignees": ["danilo"],
+      "current_canonical_state": "UNKNOWN",
+      "has_bypass": false,
+      "has_rework": false,
+      "was_blocked": false,
+      "issue_id": 1,
+      "gitlab_issue_id": 4,
+      "issue_iid": 1,
+      "project_path": "web/clonesclientbuild"
+    },
+    {
+      "project_id": 10,
+      "title": "[DERR - WEB] [Melhoria] [Inconsistencias Infraçoes] Quando clica para pesquisar o scroll é liderado pra cima. Deveria permanecer na posição",
+      "assignees": ["gloria"],
+      "current_canonical_state": "DONE",
+      "lead_time_days": 12.106666666666667,
+      "cycle_time_days": 0.11083333333333334,
+      "has_bypass": false,
+      "has_rework": false,
+      "was_blocked": false,
+      "issue_id": 2,
+      "gitlab_issue_id": 234,
+      "issue_iid": 18,
+      "project_path": "web/derrj"
     }
   ],
   "page": 1,
-  "page_size": 1,
+  "page_size": 2,
   "total": 1890
 }
 ```
@@ -750,15 +852,15 @@ curl -H "X-Client-ID: myclient" \
 ```json
 {
   "issue": {
-    "gitlab_iid": 1,
-    "project_id": 93,
-    "id": 1,
     "title": "Componente Modal Dinâmico",
-    "assignees": [
-      "danilo"
-    ],
+    "assignees": ["danilo"],
     "current_canonical_state": "UNKNOWN",
-    "gitlab_created_at": "2023-12-12T14:49:58.651Z"
+    "gitlab_created_at": "2023-12-12T14:49:58.651Z",
+    "issue_id": 1,
+    "gitlab_issue_id": 4,
+    "issue_iid": 1,
+    "project_id": 93,
+    "project_path": "web/clonesclientbuild"
   },
   "timeline": [
     {
@@ -782,12 +884,126 @@ curl -H "X-Client-ID: myclient" \
 - `Group`: `group_path`, `project_count`, `total_issues`, `last_synced_at`
 - `User`: `username`, `display_name`, `active_issues`, `completed_issues_last_30_days`
 - `DeliveryMetricsResponse`: `period`, `throughput`, `speed_metrics_days`, `breakdown_by_assignee`
-- `QualityMetricsResponse`: `rework`, `process_health`, `bottlenecks`, `defects`
-- `WipMetricsResponse`: `current_wip`, `aging_wip`
-- `IssuesListResponse`: `items`, `page`, `page_size`, `total`
+- `QualityMetricsResponse`: `rework`, `process_health`, `bottlenecks`, `defects` (defects pode ser objeto vazio)
+- `WipMetricsResponse`: `current_wip` (with `in_progress`, `qa_review`, `blocked`), `aging_wip[]`
+- `AgingIssue`: `issue_id`, `gitlab_issue_id`, `issue_iid`, `project_id`, `project_path`, `title`, `assignees`, `current_state`, `days_in_state`, `warning_flag`
+- `IssuesListResponse`: `items[]`, `page`, `page_size`, `total`
+- `IssueListItem`: `issue_id`, `gitlab_issue_id`, `issue_iid`, `project_id`, `project_path`, `title`, `assignees`, `current_canonical_state`, `lead_time_days`, `cycle_time_days`, `has_bypass`, `has_rework`, `was_blocked`, `days_in_state`
 - `IssueTimelineResponse`: `issue`, `timeline`
-- `MetricsSnapshot`: `endpoints`, `total_requests`, `total_errors`
+- `IssueSummary`: `issue_id`, `gitlab_issue_id`, `issue_iid`, `project_id`, `project_path`, `title`, `assignees`, `current_canonical_state`, `gitlab_created_at`
+- `TimelineEvent`: `type` (issue_created|comment|state_change), `timestamp`, `actor`, `from_state`, `to_state`, `body`
+- `MetricsSnapshot`: `endpoints[]`, `total_requests`, `total_errors`
 - `UserPerformanceResponse`: `user`, `period`, `delivery`, `quality`, `wip`
+- `UserPerformanceIdentity`: `username`, `display_name`, `active_issues`, `completed_issues_last_30_days`
+- `CurrentWIP`: `in_progress`, `qa_review`, `blocked`
+- `DeliveryTrendResponse`: `period`, `bucket`, `timezone`, `filters_applied`, `items[]`, `correlation`
+- `DeliveryTrendPoint`: `bucket_start`, `bucket_end`, `bucket_label`, `throughput`, `speed_metrics_days`, `correlation`
+- `GhostWorkMetricsResponse`: `total_issues`, `period`, `issues[]`, `transition_analysis[]`, `breakdown_by_user[]`, `page`, `page_size`, `total_pages`
+- `GhostWorkIssue`: `issue_iid`, `project_path`, `issue_title`, `assignees`, `from_state`, `to_state`, `transition_time`, `duration_hours`, `current_state`, `final_done_at`, `issue_id`, `gitlab_issue_id`, `project_id`
+
+### GET /metrics/delivery/trend
+
+Request:
+
+```bash
+curl -H "X-Client-ID: myclient" \
+     -H "X-Client-Secret: mysecret" \
+     "http://localhost:8080/api/v1/metrics/delivery/trend?start_date=2026-01-01&end_date=2026-03-01&bucket=week"
+```
+
+```json
+{
+  "period": {
+    "start_date": "2026-01-01",
+    "end_date": "2026-03-01"
+  },
+  "bucket": "week",
+  "timezone": "UTC",
+  "filters_applied": {
+    "group_path": null,
+    "project_id": null,
+    "assignee": null
+  },
+  "items": [
+    {
+      "bucket_start": "2026-01-05",
+      "bucket_end": "2026-01-11",
+      "bucket_label": "",
+      "throughput": {
+        "total_issues_done": 109
+      },
+      "speed_metrics_days": {
+        "lead_time": {"avg": 27.7, "p85": 36.1},
+        "cycle_time": {"avg": 18.1, "p85": 28.8}
+      }
+    },
+    {
+      "bucket_start": "2026-01-12",
+      "bucket_end": "2026-01-18",
+      "bucket_label": "",
+      "throughput": {
+        "total_issues_done": 49
+      },
+      "speed_metrics_days": {
+        "lead_time": {"avg": 53.7, "p85": 76.6},
+        "cycle_time": {"avg": 41.5, "p85": 71.7}
+      }
+    }
+  ],
+  "correlation": {
+    "throughput_vs_lead_time_r": 0.32,
+    "throughput_vs_cycle_time_r": 0.30
+  }
+}
+```
+
+### GET /metrics/ghost-work
+
+Request:
+
+```bash
+curl -H "X-Client-ID: myclient" \
+     -H "X-Client-Secret: mysecret" \
+     "http://localhost:8080/api/v1/metrics/ghost-work?start_date=2026-01-01&end_date=2026-03-01&page=1&page_size=2"
+```
+
+```json
+{
+  "total_issues": 74,
+  "period": {
+    "start_date": "2026-01-01",
+    "end_date": "2026-03-01"
+  },
+  "issues": [
+    {
+      "issue_iid": 170,
+      "project_path": "web/novosidaf",
+      "issue_title": "CORREÇÃO: O SITE DE PRODUÇÃO NÃO ESTÁ RETORNANDO NENHUM LOG",
+      "assignees": ["ianfelps"],
+      "from_state": "BACKLOG",
+      "to_state": "QA_REVIEW",
+      "transition_time": "2026-01-07T15:59:59.220Z",
+      "duration_hours": 49.76,
+      "current_state": "DONE",
+      "final_done_at": "2026-01-07T17:42:47.463Z",
+      "issue_id": 208,
+      "gitlab_issue_id": 1294,
+      "project_id": 256
+    }
+  ],
+  "transition_analysis": [
+    {"from_state": "BACKLOG", "to_state": "QA_REVIEW", "count": 208},
+    {"from_state": "BACKLOG", "to_state": "DONE", "count": 26}
+  ],
+  "breakdown_by_user": [
+    {"username": "nevez", "ghost_work_count": 46, "issue_iids": [4,5,6,7,8]},
+    {"username": "gabriel", "ghost_work_count": 27, "issue_iids": [1,4,5,8,9]}
+  ],
+  "page": 1,
+  "page_size": 2,
+  "total_pages": 37
+}
+```
 
 ### GET /users/{username}/performance
 

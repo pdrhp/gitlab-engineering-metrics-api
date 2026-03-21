@@ -3,10 +3,10 @@ package integration
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
-	"os"
 
 	"gitlab-engineering-metrics-api/internal/auth"
 	"gitlab-engineering-metrics-api/internal/domain"
@@ -49,6 +49,7 @@ type MockMetricsService struct {
 	DeliveryMetrics *domain.DeliveryMetricsResponse
 	QualityMetrics  *domain.QualityMetricsResponse
 	WipMetrics      *domain.WipMetricsResponse
+	DeliveryTrend   *domain.DeliveryTrendResponse
 	Err             error
 }
 
@@ -71,6 +72,13 @@ func (m *MockMetricsService) GetWipMetrics(ctx context.Context, filter domain.Me
 		return nil, m.Err
 	}
 	return m.WipMetrics, nil
+}
+
+func (m *MockMetricsService) GetDeliveryTrendMetrics(ctx context.Context, filter domain.DeliveryTrendFilter) (*domain.DeliveryTrendResponse, error) {
+	if m.Err != nil {
+		return nil, m.Err
+	}
+	return m.DeliveryTrend, nil
 }
 
 // MockIssuesService is a mock implementation of the issues service
@@ -113,7 +121,7 @@ func NewTestAppBuilder() *TestAppBuilder {
 		IssuesService:  &MockIssuesService{},
 		Validator:      auth.NewValidator(map[string]string{TestClientID: TestClientSecret}),
 		Metrics:        observability.NewMetricsCollector(),
-		Logger:         slog.New(slog.NewJSONHandler(os.NewFile(0, os.DevNull), nil)),
+		Logger:         slog.New(slog.NewJSONHandler(io.Discard, nil)),
 	}
 }
 
@@ -141,8 +149,10 @@ func (b *TestAppBuilder) Build() http.Handler {
 	deliveryHandler := handlers.NewDeliveryHandler(b.MetricsService)
 	qualityHandler := handlers.NewQualityHandler(b.MetricsService)
 	wipHandler := handlers.NewWipHandler(b.MetricsService)
+	deliveryTrendHandler := handlers.NewDeliveryTrendHandler(b.MetricsService)
 
 	mux.Handle("/api/v1/metrics/delivery", authMiddleware(http.HandlerFunc(deliveryHandler.Get)))
+	mux.Handle("/api/v1/metrics/delivery/trend", authMiddleware(http.HandlerFunc(deliveryTrendHandler.Get)))
 	mux.Handle("/api/v1/metrics/quality", authMiddleware(http.HandlerFunc(qualityHandler.Get)))
 	mux.Handle("/api/v1/metrics/wip", authMiddleware(http.HandlerFunc(wipHandler.Get)))
 

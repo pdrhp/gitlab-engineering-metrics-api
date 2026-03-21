@@ -5,7 +5,9 @@ import (
 	"database/sql"
 	"fmt"
 	"log/slog"
+	"math"
 	"strings"
+	"time"
 
 	"github.com/lib/pq"
 
@@ -144,6 +146,219 @@ func (r *MetricsRepository) GetWipMetrics(ctx context.Context, filter domain.Met
 		CurrentWIP: currentWIP,
 		AgingWIP:   agingWIP,
 	}, nil
+}
+
+// GetDeliveryTrendMetrics returns delivery trend metrics with bucketing and correlation
+func (r *MetricsRepository) GetDeliveryTrendMetrics(ctx context.Context, filter domain.DeliveryTrendFilter) (*domain.DeliveryTrendResponse, error) {
+	// Defaults
+	if filter.Bucket == "" {
+		filter.Bucket = "week"
+	}
+	if filter.Timezone == "" {
+		filter.Timezone = "UTC"
+	}
+
+	// Check project_id belongs to group_path if both provided
+	if filter.ProjectID > 0 && filter.GroupPath != "" {
+		var count int
+		err := r.db.QueryRowContext(ctx,
+			"SELECT COUNT(*) FROM projects WHERE id = $1 AND regexp_replace(path, '/[^/]+$', '') = $2",
+			filter.ProjectID, filter.GroupPath).Scan(&count)
+		if err != nil {
+			return nil, fmt.Errorf("failed to validate project group membership: %w", err)
+		}
+		if count == 0 {
+			return nil, fmt.Errorf("project_id %d does not belong to group_path %s", filter.ProjectID, filter.GroupPath)
+		}
+	}
+
+	// Build filter conditions
+	conditions, args := r.buildFilterConditions(filter.MetricsFilter, 0)
+
+	// Add date range filter for final_done_at
+	argIdx := len(args)
+	if filter.StartDate != "" {
+		argIdx++
+		conditions = append(conditions, fmt.Sprintf("final_done_at >= $%d::date", argIdx))
+		args = append(args, filter.StartDate)
+	}
+	if filter.EndDate != "" {
+		argIdx++
+		conditions = append(conditions, fmt.Sprintf("final_done_at < ($%d::date + INTERVAL '1 day')", argIdx))
+		args = append(args, filter.EndDate)
+	}
+
+	// Build bucketed query
+	bucketExpr := fmt.Sprintf("date_trunc('%s', final_done_at AT TIME ZONE $%d)", filter.Bucket, argIdx+1)
+	args = append(args, filter.Timezone)
+
+	// Base query for bucketed data
+	query := fmt.Sprintf(`
+		WITH bucketed AS (
+			SELECT
+				%s::date AS bucket_start,
+				COUNT(*)::float8 AS throughput,
+				AVG(lead_time_hours) FILTER (WHERE is_completed AND lead_time_hours IS NOT NULL) AS lead_avg_hours,
+				CASE
+					WHEN COUNT(*) FILTER (WHERE is_completed AND lead_time_hours IS NOT NULL) >= 2
+					THEN PERCENTILE_CONT(0.85) WITHIN GROUP (ORDER BY lead_time_hours)
+						 FILTER (WHERE is_completed AND lead_time_hours IS NOT NULL)
+					ELSE NULL
+				END AS lead_p85_hours,
+				AVG(cycle_time_hours) FILTER (WHERE is_completed AND cycle_time_hours IS NOT NULL) AS cycle_avg_hours,
+				CASE
+					WHEN COUNT(*) FILTER (WHERE is_completed AND cycle_time_hours IS NOT NULL) >= 2
+					THEN PERCENTILE_CONT(0.85) WITHIN GROUP (ORDER BY cycle_time_hours)
+						 FILTER (WHERE is_completed AND cycle_time_hours IS NOT NULL)
+					ELSE NULL
+				END AS cycle_p85_hours
+			FROM vw_issue_lifecycle_metrics
+			WHERE is_completed = true
+			%s
+			GROUP BY 1
+		)
+		SELECT
+			bucket_start,
+			throughput,
+			lead_avg_hours,
+			lead_p85_hours,
+			cycle_avg_hours,
+			cycle_p85_hours
+		FROM bucketed
+		ORDER BY bucket_start`, bucketExpr,
+		func() string {
+			if len(conditions) > 0 {
+				return " AND " + strings.Join(conditions, " AND ")
+			}
+			return ""
+		}())
+
+	// Execute query
+	rows, err := r.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query trend metrics: %w", err)
+	}
+	defer rows.Close()
+
+	var items []domain.DeliveryTrendPoint
+	var throughputs []float64
+	var leadAvgs []float64
+	var cycleAvgs []float64
+
+	for rows.Next() {
+		var item domain.DeliveryTrendPoint
+		var bucketStart time.Time
+		var throughput float64
+		var leadAvgHours, leadP85Hours, cycleAvgHours, cycleP85Hours sql.NullFloat64
+
+		if err := rows.Scan(&bucketStart, &throughput, &leadAvgHours, &leadP85Hours, &cycleAvgHours, &cycleP85Hours); err != nil {
+			return nil, fmt.Errorf("failed to scan trend row: %w", err)
+		}
+
+		// Calculate bucket end
+		var bucketEnd time.Time
+		switch filter.Bucket {
+		case "day":
+			bucketEnd = bucketStart
+		case "week":
+			bucketEnd = bucketStart.AddDate(0, 0, 6)
+		case "month":
+			bucketEnd = bucketStart.AddDate(0, 1, -1)
+		}
+
+		item.BucketStart = bucketStart.Format("2006-01-02")
+		item.BucketEnd = bucketEnd.Format("2006-01-02")
+		item.Throughput.TotalIssuesDone = int(throughput)
+
+		if leadAvgHours.Valid {
+			avg := leadAvgHours.Float64 / 24.0
+			item.SpeedMetricsDays.LeadTime.Avg = &avg
+			throughputs = append(throughputs, throughput)
+			leadAvgs = append(leadAvgs, avg)
+		}
+		if leadP85Hours.Valid {
+			p85 := leadP85Hours.Float64 / 24.0
+			item.SpeedMetricsDays.LeadTime.P85 = &p85
+		}
+		if cycleAvgHours.Valid {
+			avg := cycleAvgHours.Float64 / 24.0
+			item.SpeedMetricsDays.CycleTime.Avg = &avg
+			cycleAvgs = append(cycleAvgs, avg)
+		}
+		if cycleP85Hours.Valid {
+			p85 := cycleP85Hours.Float64 / 24.0
+			item.SpeedMetricsDays.CycleTime.P85 = &p85
+		}
+
+		items = append(items, item)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating trend rows: %w", err)
+	}
+
+	// Build response
+	resp := &domain.DeliveryTrendResponse{
+		Period: domain.Period{
+			StartDate: filter.StartDate,
+			EndDate:   filter.EndDate,
+		},
+		Bucket:   filter.Bucket,
+		Timezone: filter.Timezone,
+		Items:    items,
+	}
+
+	// Set filters_applied
+	if filter.GroupPath != "" {
+		resp.FiltersApplied.GroupPath = &filter.GroupPath
+	}
+	if filter.ProjectID > 0 {
+		resp.FiltersApplied.ProjectID = &filter.ProjectID
+	}
+	if filter.Assignee != "" {
+		resp.FiltersApplied.Assignee = &filter.Assignee
+	}
+
+	// Calculate correlation if we have enough data points
+	if len(throughputs) >= 2 {
+		corr := calculateCorrelation(throughputs, leadAvgs)
+		resp.Correlation = &domain.DeliveryTrendCorrelation{
+			ThroughputVsLeadTimeR: corr,
+		}
+		if len(cycleAvgs) >= 2 {
+			corrCycle := calculateCorrelation(throughputs, cycleAvgs)
+			resp.Correlation.ThroughputVsCycleTimeR = corrCycle
+		}
+	}
+
+	return resp, nil
+}
+
+func calculateCorrelation(x, y []float64) *float64 {
+	if len(x) != len(y) || len(x) < 2 {
+		return nil
+	}
+
+	n := float64(len(x))
+	var sumX, sumY, sumXY, sumX2, sumY2 float64
+
+	for i := 0; i < len(x); i++ {
+		sumX += x[i]
+		sumY += y[i]
+		sumXY += x[i] * y[i]
+		sumX2 += x[i] * x[i]
+		sumY2 += y[i] * y[i]
+	}
+
+	numerator := n*sumXY - sumX*sumY
+	denominator := math.Sqrt((n*sumX2 - sumX*sumX) * (n*sumY2 - sumY*sumY))
+
+	if denominator == 0 {
+		return nil
+	}
+
+	r := numerator / denominator
+	return &r
 }
 
 // buildFilterConditions builds SQL conditions and args from filter
