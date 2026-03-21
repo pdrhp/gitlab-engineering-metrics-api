@@ -41,14 +41,14 @@ func (r *GhostWorkRepository) GetGhostWorkIssues(ctx context.Context, filter dom
 		return nil, fmt.Errorf("failed to query ghost work issues: %w", err)
 	}
 
-	// Get transition analysis (no filters for aggregates)
-	transitionAnalysis, err := r.queryTransitionAnalysis(ctx)
+	// Get transition analysis (with filters)
+	transitionAnalysis, err := r.queryTransitionAnalysis(ctx, conditions, args)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query transition analysis: %w", err)
 	}
 
-	// Get user breakdown (no filters for aggregates)
-	userBreakdown, err := r.queryUserBreakdown(ctx)
+	// Get user breakdown (with filters)
+	userBreakdown, err := r.queryUserBreakdown(ctx, conditions, args)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query user breakdown: %w", err)
 	}
@@ -162,7 +162,7 @@ func (r *GhostWorkRepository) queryGhostWorkIssues(ctx context.Context, conditio
 }
 
 // queryTransitionAnalysis aggregates ghost work by transition type
-func (r *GhostWorkRepository) queryTransitionAnalysis(ctx context.Context) ([]domain.GhostWorkTransitionSummary, error) {
+func (r *GhostWorkRepository) queryTransitionAnalysis(ctx context.Context, conditions []string, args []interface{}) ([]domain.GhostWorkTransitionSummary, error) {
 	query := `
 		SELECT 
 			'BACKLOG' as from_state,
@@ -177,10 +177,15 @@ func (r *GhostWorkRepository) queryTransitionAnalysis(ctx context.Context) ([]do
 		WHERE m.skipped_in_progress_flag = true
 			AND t.canonical_state = 'BACKLOG'
 			AND t.next_canonical_state IN ('DONE', 'QA_REVIEW')
-		GROUP BY to_state ORDER BY count DESC
 	`
 
-	rows, err := r.db.QueryContext(ctx, query)
+	if len(conditions) > 0 {
+		query += " AND " + joinConditions(conditions)
+	}
+
+	query += " GROUP BY to_state ORDER BY count DESC"
+
+	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -199,7 +204,7 @@ func (r *GhostWorkRepository) queryTransitionAnalysis(ctx context.Context) ([]do
 }
 
 // queryUserBreakdown aggregates ghost work by user
-func (r *GhostWorkRepository) queryUserBreakdown(ctx context.Context) ([]domain.GhostWorkUserBreakdown, error) {
+func (r *GhostWorkRepository) queryUserBreakdown(ctx context.Context, conditions []string, args []interface{}) ([]domain.GhostWorkUserBreakdown, error) {
 	query := `
 		SELECT 
 			a.username,
@@ -211,10 +216,15 @@ func (r *GhostWorkRepository) queryUserBreakdown(ctx context.Context) ([]domain.
 		WHERE m.skipped_in_progress_flag = true
 			AND t.canonical_state = 'BACKLOG'
 			AND t.next_canonical_state IN ('DONE', 'QA_REVIEW')
-		GROUP BY a.username ORDER BY ghost_work_count DESC
 	`
 
-	rows, err := r.db.QueryContext(ctx, query)
+	if len(conditions) > 0 {
+		query += " AND " + joinConditions(conditions)
+	}
+
+	query += " GROUP BY a.username ORDER BY ghost_work_count DESC"
+
+	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}

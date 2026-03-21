@@ -14,6 +14,7 @@ type MetricsRepository interface {
 	GetDeliveryMetrics(ctx context.Context, filter domain.MetricsFilter) (*domain.DeliveryMetricsResponse, error)
 	GetQualityMetrics(ctx context.Context, filter domain.MetricsFilter) (*domain.QualityMetricsResponse, error)
 	GetWipMetrics(ctx context.Context, filter domain.MetricsFilter) (*domain.WipMetricsResponse, error)
+	GetDeliveryTrendMetrics(ctx context.Context, filter domain.DeliveryTrendFilter) (*domain.DeliveryTrendResponse, error)
 }
 
 // MetricsService provides metrics operations
@@ -91,10 +92,10 @@ func (s *MetricsService) validateFilter(filter domain.MetricsFilter) error {
 			return errors.New("end_date must be after start_date")
 		}
 
-		// Check date range is not too large (max 90 days)
-		maxRange := 90 * 24 * time.Hour
+		// Check date range is not too large (max 366 days)
+		maxRange := 366 * 24 * time.Hour
 		if endDate.Sub(startDate) > maxRange {
-			return errors.New("date range cannot exceed 90 days")
+			return errors.New("date range cannot exceed 366 days")
 		}
 	}
 
@@ -105,5 +106,55 @@ func (s *MetricsService) validateFilter(filter domain.MetricsFilter) error {
 func (s *MetricsService) validateWIPFilter(filter domain.MetricsFilter) error {
 	// WIP metrics ignore date range, so we only validate other filters
 	// Group path and project ID can be validated for proper format if needed
+	return nil
+}
+
+// GetDeliveryTrendMetrics returns delivery trend metrics
+func (s *MetricsService) GetDeliveryTrendMetrics(ctx context.Context, filter domain.DeliveryTrendFilter) (*domain.DeliveryTrendResponse, error) {
+	if err := s.validateDeliveryTrendFilter(filter); err != nil {
+		return nil, err
+	}
+	out, err := s.repo.GetDeliveryTrendMetrics(ctx, filter)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get delivery trend metrics: %w", err)
+	}
+	return out, nil
+}
+
+func (s *MetricsService) validateDeliveryTrendFilter(filter domain.DeliveryTrendFilter) error {
+	if filter.StartDate == "" || filter.EndDate == "" {
+		return errors.New("both start_date and end_date are required")
+	}
+
+	startDate, err := time.Parse("2006-01-02", filter.StartDate)
+	if err != nil {
+		return errors.New("invalid start_date format, expected YYYY-MM-DD")
+	}
+	endDate, err := time.Parse("2006-01-02", filter.EndDate)
+	if err != nil {
+		return errors.New("invalid end_date format, expected YYYY-MM-DD")
+	}
+	if endDate.Before(startDate) {
+		return errors.New("end_date must be after start_date")
+	}
+	if endDate.Sub(startDate) > (366 * 24 * time.Hour) {
+		return errors.New("date range cannot exceed 366 days")
+	}
+
+	if filter.Bucket == "" {
+		filter.Bucket = "week"
+	}
+	if filter.Bucket != "day" && filter.Bucket != "week" && filter.Bucket != "month" {
+		return errors.New("bucket must be one of: day, week, month")
+	}
+
+	tz := filter.Timezone
+	if tz == "" {
+		tz = "UTC"
+	}
+	if _, err := time.LoadLocation(tz); err != nil {
+		return errors.New("invalid timezone")
+	}
+
 	return nil
 }

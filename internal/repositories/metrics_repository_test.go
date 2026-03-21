@@ -226,3 +226,28 @@ func TestMetricsRepository_BuildFilterConditions_AssigneeUsesJSONB(t *testing.T)
 		t.Fatalf("unexpected args: %#v", args)
 	}
 }
+
+func TestMetricsRepository_GetDeliveryTrendMetrics(t *testing.T) {
+	db := setupTestDB(t)
+	defer db.Close()
+
+	repo := NewMetricsRepository(db)
+	filter := domain.DeliveryTrendFilter{
+		MetricsFilter:       domain.MetricsFilter{StartDate: "2026-02-01", EndDate: "2026-03-01"},
+		Bucket:              "week",
+		Timezone:            "America/Sao_Paulo",
+		IncludeEmptyBuckets: true,
+	}
+
+	got, err := repo.GetDeliveryTrendMetrics(context.Background(), filter)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got == nil {
+		t.Fatalf("expected non-nil trend response")
+	}
+	// We may get empty items if no data in test DB, that's ok
+	if got.Bucket != "week" {
+		t.Fatalf("expected bucket 'week', got %s", got.Bucket)
+	}
+}

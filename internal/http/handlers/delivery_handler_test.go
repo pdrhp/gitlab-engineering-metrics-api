@@ -15,6 +15,7 @@ type mockMetricsService struct {
 	deliveryMetrics *domain.DeliveryMetricsResponse
 	qualityMetrics  *domain.QualityMetricsResponse
 	wipMetrics      *domain.WipMetricsResponse
+	deliveryTrend   *domain.DeliveryTrendResponse
 	err             error
 }
 
@@ -37,6 +38,13 @@ func (m *mockMetricsService) GetWipMetrics(ctx context.Context, filter domain.Me
 		return nil, m.err
 	}
 	return m.wipMetrics, nil
+}
+
+func (m *mockMetricsService) GetDeliveryTrendMetrics(ctx context.Context, filter domain.DeliveryTrendFilter) (*domain.DeliveryTrendResponse, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
+	return m.deliveryTrend, nil
 }
 
 func TestDeliveryHandler_Get(t *testing.T) {
@@ -146,7 +154,7 @@ func TestDeliveryHandler_Get_ServiceError(t *testing.T) {
 func TestDeliveryHandler_Get_ValidationError(t *testing.T) {
 	// Service returns validation error
 	mockService := &mockMetricsService{
-		err: errors.New("date range cannot exceed 90 days"),
+		err: errors.New("date range cannot exceed 366 days"),
 	}
 
 	handler := NewDeliveryHandler(mockService)

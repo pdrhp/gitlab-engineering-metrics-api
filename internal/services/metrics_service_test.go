@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"gitlab-engineering-metrics-api/internal/domain"
@@ -12,6 +13,7 @@ type mockMetricsRepository struct {
 	deliveryMetrics *domain.DeliveryMetricsResponse
 	qualityMetrics  *domain.QualityMetricsResponse
 	wipMetrics      *domain.WipMetricsResponse
+	deliveryTrend   *domain.DeliveryTrendResponse
 	err             error
 }
 
@@ -34,6 +36,13 @@ func (m *mockMetricsRepository) GetWipMetrics(ctx context.Context, filter domain
 		return nil, m.err
 	}
 	return m.wipMetrics, nil
+}
+
+func (m *mockMetricsRepository) GetDeliveryTrendMetrics(ctx context.Context, filter domain.DeliveryTrendFilter) (*domain.DeliveryTrendResponse, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
+	return m.deliveryTrend, nil
 }
 
 func TestMetricsService_GetDeliveryMetrics(t *testing.T) {
@@ -111,10 +120,10 @@ func TestMetricsService_GetDeliveryMetrics(t *testing.T) {
 			name: "date range too large",
 			filter: domain.MetricsFilter{
 				StartDate: "2024-01-01",
-				EndDate:   "2024-06-01",
+				EndDate:   "2025-02-01",
 			},
 			wantErr:     true,
-			errContains: "cannot exceed 90 days",
+			errContains: "cannot exceed 366 days",
 		},
 	}
 
@@ -269,4 +278,54 @@ func TestMetricsService_RepositoryError(t *testing.T) {
 			t.Error("Expected error from repository, got nil")
 		}
 	})
+}
+
+func TestMetricsService_GetDeliveryTrendMetrics(t *testing.T) {
+	mockRepo := &mockMetricsRepository{
+		deliveryTrend: &domain.DeliveryTrendResponse{Bucket: "week", Timezone: "UTC"},
+	}
+
+	service := NewMetricsService(mockRepo)
+
+	got, err := service.GetDeliveryTrendMetrics(context.Background(), domain.DeliveryTrendFilter{
+		MetricsFilter: domain.MetricsFilter{
+			StartDate: "2026-01-01",
+			EndDate:   "2026-01-31",
+		},
+		Bucket: "week",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got == nil || got.Bucket != "week" {
+		t.Fatalf("unexpected response: %#v", got)
+	}
+}
+
+func TestMetricsService_validateDeliveryTrendFilter(t *testing.T) {
+	svc := NewMetricsService(&mockMetricsRepository{})
+
+	tests := []struct {
+		name    string
+		filter  domain.DeliveryTrendFilter
+		wantErr string
+	}{
+		{"invalid bucket", domain.DeliveryTrendFilter{MetricsFilter: domain.MetricsFilter{StartDate: "2026-01-01", EndDate: "2026-01-31"}, Bucket: "quarter"}, "bucket must be one of: day, week, month"},
+		{"bad timezone", domain.DeliveryTrendFilter{MetricsFilter: domain.MetricsFilter{StartDate: "2026-01-01", EndDate: "2026-01-31"}, Bucket: "week", Timezone: "Mars/Olympus"}, "invalid timezone"},
+		{"range too large", domain.DeliveryTrendFilter{MetricsFilter: domain.MetricsFilter{StartDate: "2025-01-01", EndDate: "2026-12-31"}, Bucket: "week", Timezone: "UTC"}, "date range cannot exceed 366 days"},
+		{"missing start_date", domain.DeliveryTrendFilter{MetricsFilter: domain.MetricsFilter{EndDate: "2026-01-31"}, Bucket: "week"}, "both start_date and end_date are required"},
+		{"missing end_date", domain.DeliveryTrendFilter{MetricsFilter: domain.MetricsFilter{StartDate: "2026-01-01"}, Bucket: "week"}, "both start_date and end_date are required"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := svc.GetDeliveryTrendMetrics(context.Background(), tt.filter)
+			if err == nil {
+				t.Fatalf("expected error containing %q, got nil", tt.wantErr)
+			}
+			if !strings.Contains(err.Error(), tt.wantErr) {
+				t.Fatalf("expected error containing %q, got %v", tt.wantErr, err)
+			}
+		})
+	}
 }

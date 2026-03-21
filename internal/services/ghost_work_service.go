@@ -71,10 +71,10 @@ func (s *GhostWorkService) validateFilter(filter domain.GhostWorkFilter) error {
 			return errors.New("end_date must be after start_date")
 		}
 
-		// Check date range is not too large (max 90 days)
-		maxRange := 90 * 24 * time.Hour
+		// Check date range is not too large (max 366 days)
+		maxRange := 366 * 24 * time.Hour
 		if endDate.Sub(startDate) > maxRange {
-			return errors.New("date range cannot exceed 90 days")
+			return errors.New("date range cannot exceed 366 days")
 		}
 	}
 
