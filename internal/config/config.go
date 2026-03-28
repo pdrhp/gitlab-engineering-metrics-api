@@ -71,7 +71,7 @@ func (c *Config) GetDSN() string {
 
 // loadClientCredentials parses client credentials from environment variable
 func (c *Config) loadClientCredentials() {
-	credStr := os.Getenv("CLIENT_CREDENTIALS")
+	credStr := getEnv("CLIENT_CREDENTIALS", "")
 	if credStr == "" {
 		return
 	}
@@ -111,11 +111,27 @@ func (c *Config) GetConnMaxLifetime() time.Duration {
 	return c.ConnMaxLifetime
 }
 
-// getEnv retrieves an environment variable with a default value
+// getEnv retrieves an environment variable with a default value.
+// If the direct env var is empty, it checks for <KEY>_FILE and reads the value from the file.
 func getEnv(key, defaultValue string) string {
 	if value := os.Getenv(key); value != "" {
 		return value
 	}
+
+	fileKey := key + "_FILE"
+	if filePath := os.Getenv(fileKey); filePath != "" {
+		b, err := os.ReadFile(filePath)
+		if err != nil {
+			log.Printf("Warning: failed to read %s from %s: %v", fileKey, filePath, err)
+			return defaultValue
+		}
+
+		valueFromFile := strings.TrimSpace(string(b))
+		if valueFromFile != "" {
+			return valueFromFile
+		}
+	}
+
 	return defaultValue
 }
 
