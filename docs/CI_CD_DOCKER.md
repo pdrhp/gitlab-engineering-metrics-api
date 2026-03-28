@@ -76,6 +76,21 @@ docker run --rm -p 8080:8080 \
 
 As variaveis abaixo sao lidas pela aplicacao.
 
+### File-Based Secrets
+
+Para qualquer variavel de ambiente, voce pode usar o sufixo `_FILE` para especificar um caminho de arquivo contendo o valor. Isso e util para deployments em containers com segredos montados.
+
+Exemplo:
+```bash
+# Variavel direta
+export DB_PASSWORD="my-secret"
+
+# OU usando arquivo de segredo
+export DB_PASSWORD_FILE="/run/secrets/db_password"
+```
+
+**Prioridade:** Variaveis diretas tem precedencia sobre variantes `_FILE`. Se ambas estiverem definidas, o valor direto e usado.
+
 ### Banco
 
 - `DB_HOST` (default: `localhost`)

@@ -7,6 +7,40 @@
 
 Base path (server): `/api/v1`
 
+## Configuration
+
+The application supports environment variables for configuration. For sensitive values like passwords and tokens, you can use either direct environment variables or file-based secrets (useful for container deployments with mounted secrets).
+
+### Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| DB_HOST | localhost | Database host |
+| DB_PORT | 5432 | Database port |
+| DB_NAME | gitlab_metrics | Database name |
+| DB_USER | - | Database user |
+| DB_PASSWORD | - | Database password |
+| DB_SSLMODE | disable | SSL mode |
+| SERVER_ADDR | :8080 | Server address |
+| GITLAB_BASE_URL | - | GitLab instance URL |
+| GITLAB_TOKEN | - | GitLab API token |
+| CLIENT_CREDENTIALS | - | Comma-separated list of client credentials |
+
+### File-Based Secrets
+
+For any environment variable, you can use a `_FILE` suffix to specify a path to a file containing the value. This is useful for container deployments with mounted secrets.
+
+Example:
+```bash
+# Direct environment variable
+export DB_PASSWORD="my-secret"
+
+# OR using file-based secret
+export DB_PASSWORD_FILE="/run/secrets/db_password"
+```
+
+**Priority:** Direct environment variables take precedence over `_FILE` variants. If both are set, the direct value is used.
+
 ## Authentication
 
 - Security scheme: `ClientCredentials` (`apiKey` in header)
