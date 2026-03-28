@@ -1,6 +1,8 @@
 package config
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 )
@@ -228,5 +230,57 @@ func TestLoadClientCredentials(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestLoadConfig_UsesFileBackedEnvWhenDirectIsEmpty(t *testing.T) {
+	dir := t.TempDir()
+	passFile := filepath.Join(dir, "db_password.txt")
+	if err := os.WriteFile(passFile, []byte("file-secret\n"), 0o600); err != nil {
+		t.Fatalf("write temp secret file: %v", err)
+	}
+
+	t.Setenv("DB_PASSWORD", "")
+	t.Setenv("DB_PASSWORD_FILE", passFile)
+
+	cfg := Load()
+	if cfg.DBPassword != "file-secret" {
+		t.Fatalf("DBPassword = %q, want %q", cfg.DBPassword, "file-secret")
+	}
+}
+
+func TestLoadConfig_DirectEnvHasPriorityOverFile(t *testing.T) {
+	dir := t.TempDir()
+	userFile := filepath.Join(dir, "db_user.txt")
+	if err := os.WriteFile(userFile, []byte("file-user"), 0o600); err != nil {
+		t.Fatalf("write temp user file: %v", err)
+	}
+
+	t.Setenv("DB_USER", "direct-user")
+	t.Setenv("DB_USER_FILE", userFile)
+
+	cfg := Load()
+	if cfg.DBUser != "direct-user" {
+		t.Fatalf("DBUser = %q, want %q", cfg.DBUser, "direct-user")
+	}
+}
+
+func TestLoadClientCredentials_UsesFileBackedEnv(t *testing.T) {
+	dir := t.TempDir()
+	credsFile := filepath.Join(dir, "client_creds.txt")
+	content := "client-a:secret-a,client-b:secret-b\n"
+	if err := os.WriteFile(credsFile, []byte(content), 0o600); err != nil {
+		t.Fatalf("write temp creds file: %v", err)
+	}
+
+	t.Setenv("CLIENT_CREDENTIALS", "")
+	t.Setenv("CLIENT_CREDENTIALS_FILE", credsFile)
+
+	cfg := Load()
+	if cfg.ClientCredentials["client-a"] != "secret-a" {
+		t.Fatalf("client-a secret mismatch: %#v", cfg.ClientCredentials)
+	}
+	if cfg.ClientCredentials["client-b"] != "secret-b" {
+		t.Fatalf("client-b secret mismatch: %#v", cfg.ClientCredentials)
 	}
 }
