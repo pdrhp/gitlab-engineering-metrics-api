@@ -51,8 +51,9 @@ func (m *mockUserPerformanceMetricsService) GetWipMetrics(ctx context.Context, f
 }
 
 type mockIndividualPerformanceRepository struct {
-	metrics *domain.IndividualPerformanceMetrics
-	err     error
+	metrics       *domain.IndividualPerformanceMetrics
+	cycleTimeData []domain.AssigneeCycleTime
+	err           error
 }
 
 func (m *mockIndividualPerformanceRepository) GetIndividualPerformanceMetrics(ctx context.Context, username string, filter domain.MetricsFilter) (*domain.IndividualPerformanceMetrics, error) {
@@ -60,6 +61,13 @@ func (m *mockIndividualPerformanceRepository) GetIndividualPerformanceMetrics(ct
 		return nil, m.err
 	}
 	return m.metrics, nil
+}
+
+func (m *mockIndividualPerformanceRepository) GetAssigneeCycleTime(ctx context.Context, username string, filter domain.MetricsFilter) ([]domain.AssigneeCycleTime, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
+	return m.cycleTimeData, nil
 }
 
 func TestUserPerformanceService_Get_HappyPath(t *testing.T) {

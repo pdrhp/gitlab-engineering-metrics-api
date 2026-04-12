@@ -2,10 +2,35 @@
 -- Purpose: Track cycle time per assignee during their actual assignment periods
 -- This provides FAIR individual metrics (each assignee gets credit for their actual time)
 
+-- DEPENDS ON: vw_issue_lifecycle_metrics (from migration 000016)
+-- DEPENDS ON: vw_issue_state_transitions (from migration 000016)
+
+-- Verify dependencies exist before proceeding
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_views WHERE viewname = 'vw_issue_lifecycle_metrics') THEN
+        RAISE EXCEPTION 'Required view vw_issue_lifecycle_metrics does not exist. Run migration 000016 first.';
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_views WHERE viewname = 'vw_issue_state_transitions') THEN
+        RAISE EXCEPTION 'Required view vw_issue_state_transitions does not exist. Run migration 000016 first.';
+    END IF;
+END $$;
+
+-- Indexes for JSONB operations on assignees (performance optimization)
+CREATE INDEX IF NOT EXISTS idx_issues_assignees_history_gin
+ON issues USING GIN (assignees)
+WHERE assignees IS NOT NULL AND assignees != 'null'::jsonb;
+
+-- Index for issue_events filtering by noise and timestamp
+CREATE INDEX IF NOT EXISTS idx_issue_events_assignee_lookup
+ON issue_events (issue_id, event_timestamp)
+WHERE is_noise = FALSE;
+
 -- Create assignee cycle time view
 CREATE VIEW vw_assignee_cycle_time AS
 WITH assignee_periods AS (
     -- Expand assignee history JSONB array into individual assignment periods
+    -- Validates assigned_at field to prevent malformed data from inflating cycle times
     SELECT
         i.id AS issue_id,
         i.project_id,
@@ -29,6 +54,9 @@ WITH assignee_periods AS (
     WHERE i.assignees IS NOT NULL 
       AND i.assignees != 'null'
       AND i.assignees->'history' IS NOT NULL
+      -- Validate assigned_at to prevent malformed records
+      AND ae->>'assigned_at' IS NOT NULL 
+      AND ae->>'assigned_at' != ''
 ),
 state_during_assignee AS (
     -- For each assignee period, find all state changes that occurred

@@ -42,8 +42,6 @@ func (r *IndividualPerformanceRepositoryImpl) GetAssigneeCycleTime(ctx context.C
 		slog.Int("project_id", filter.ProjectID),
 	)
 
-	conditions, args := r.buildFilterConditions(filter, username, 1)
-
 	query := `
 		SELECT
 			issue_id,
@@ -60,8 +58,13 @@ func (r *IndividualPerformanceRepositoryImpl) GetAssigneeCycleTime(ctx context.C
 		WHERE assignee_username = $1
 	`
 
-	if len(conditions) > 0 {
-		query += " AND " + joinConditions(conditions)
+	args := []interface{}{username}
+	argIdx := 1
+
+	if filter.ProjectID > 0 {
+		argIdx++
+		query += fmt.Sprintf(" AND project_id = $%d", argIdx)
+		args = append(args, filter.ProjectID)
 	}
 
 	query += " ORDER BY issue_id"
@@ -108,6 +111,7 @@ func (r *IndividualPerformanceRepositoryImpl) GetAssigneeCycleTime(ctx context.C
 
 // GetIndividualPerformanceMetrics returns aggregated performance metrics for an assignee
 // Always aggregates across all projects unless ProjectID is specified in filter
+// Note: Date filtering is applied via join with vw_assignee_cycle_time which has issue-level data
 func (r *IndividualPerformanceRepositoryImpl) GetIndividualPerformanceMetrics(ctx context.Context, username string, filter domain.MetricsFilter) (*domain.IndividualPerformanceMetrics, error) {
 	individualPerformanceRepoLogger.Debug("getting individual performance metrics",
 		slog.String("username", username),
@@ -116,7 +120,6 @@ func (r *IndividualPerformanceRepositoryImpl) GetIndividualPerformanceMetrics(ct
 		slog.Int("project_id", filter.ProjectID),
 	)
 
-	// Always use aggregation query - it works for both single-project and multi-project cases
 	query := `
 		SELECT
 			$1 as assignee_username,
@@ -143,24 +146,10 @@ func (r *IndividualPerformanceRepositoryImpl) GetIndividualPerformanceMetrics(ct
 	args := []interface{}{username}
 	argIdx := 1
 
-	// Add project_id filter if specified
 	if filter.ProjectID > 0 {
 		argIdx++
 		query += fmt.Sprintf(" AND project_id = $%d", argIdx)
 		args = append(args, filter.ProjectID)
-	}
-
-	// Add date filters if present
-	if filter.StartDate != "" {
-		argIdx++
-		query += fmt.Sprintf(" AND issue_id IN (SELECT issue_id FROM vw_issue_lifecycle_metrics WHERE final_done_at >= $%d::date)", argIdx)
-		args = append(args, filter.StartDate)
-	}
-
-	if filter.EndDate != "" {
-		argIdx++
-		query += fmt.Sprintf(" AND issue_id IN (SELECT issue_id FROM vw_issue_lifecycle_metrics WHERE final_done_at < ($%d::date + INTERVAL '1 day'))", argIdx)
-		args = append(args, filter.EndDate)
 	}
 
 	query += " GROUP BY assignee_username"
@@ -202,114 +191,4 @@ func (r *IndividualPerformanceRepositoryImpl) GetIndividualPerformanceMetrics(ct
 	)
 
 	return &metrics, nil
-}
-
-// getAggregatedPerformanceMetrics aggregates performance metrics across ALL projects for a user
-func (r *IndividualPerformanceRepositoryImpl) getAggregatedPerformanceMetrics(ctx context.Context, username string, filter domain.MetricsFilter) (*domain.IndividualPerformanceMetrics, error) {
-	individualPerformanceRepoLogger.Debug("getting aggregated performance metrics across all projects",
-		slog.String("username", username),
-	)
-
-	// Build query that aggregates across all projects
-	query := `
-		SELECT
-			$1 as assignee_username,
-			COALESCE(SUM(issues_assigned), 0)::bigint as issues_assigned,
-			COALESCE(SUM(issues_contributed), 0)::bigint as issues_contributed,
-			COALESCE(SUM(total_active_cycle_hours), 0) as total_active_cycle_hours,
-			COALESCE(AVG(avg_active_cycle_per_issue), 0) as avg_active_cycle_per_issue,
-			COALESCE(SUM(total_dev_hours), 0) as total_dev_hours,
-			COALESCE(SUM(total_qa_hours), 0) as total_qa_hours,
-			COALESCE(SUM(total_blocked_hours), 0) as total_blocked_hours,
-			COALESCE(SUM(total_backlog_hours), 0) as total_backlog_hours,
-			-- Calculate weighted average for active_work_pct
-			CASE 
-				WHEN SUM(total_hours_as_assignee) > 0 
-				THEN ROUND((100.0 * SUM(total_active_cycle_hours) / SUM(total_hours_as_assignee))::numeric, 2)
-				ELSE 0 
-			END as active_work_pct,
-			COALESCE(SUM(total_hours_as_assignee), 0) as total_hours_as_assignee,
-			COALESCE(AVG(p50_active_cycle_hours), 0) as p50_active_cycle_hours,
-			COALESCE(AVG(p95_active_cycle_hours), 0) as p95_active_cycle_hours
-		FROM vw_individual_performance_metrics
-		WHERE assignee_username = $1
-		GROUP BY assignee_username
-	`
-
-	args := []interface{}{username}
-
-	// Add date filters if present
-	argIdx := 1
-	if filter.StartDate != "" {
-		argIdx++
-		query += fmt.Sprintf(" AND issue_id IN (SELECT issue_id FROM vw_issue_lifecycle_metrics WHERE final_done_at >= $%d::date)", argIdx)
-		args = append(args, filter.StartDate)
-	}
-
-	if filter.EndDate != "" {
-		argIdx++
-		query += fmt.Sprintf(" AND issue_id IN (SELECT issue_id FROM vw_issue_lifecycle_metrics WHERE final_done_at < ($%d::date + INTERVAL '1 day'))", argIdx)
-		args = append(args, filter.EndDate)
-	}
-
-	var metrics domain.IndividualPerformanceMetrics
-	err := r.db.QueryRowContext(ctx, query, args...).Scan(
-		&metrics.Username,
-		&metrics.IssuesAssigned,
-		&metrics.IssuesContributed,
-		&metrics.TotalActiveCycleHours,
-		&metrics.AvgActiveCyclePerIssue,
-		&metrics.TotalDevHours,
-		&metrics.TotalQAHours,
-		&metrics.TotalBlockedHours,
-		&metrics.TotalBacklogHours,
-		&metrics.ActiveWorkPct,
-		&metrics.TotalHoursAsAssignee,
-		&metrics.P50ActiveCycleHours,
-		&metrics.P95ActiveCycleHours,
-	)
-
-	if err != nil {
-		individualPerformanceRepoLogger.Error("aggregated performance metrics query failed",
-			slog.String("error", err.Error()),
-		)
-		return nil, fmt.Errorf("failed to get aggregated performance metrics: %w", err)
-	}
-
-	individualPerformanceRepoLogger.Info("got aggregated performance metrics",
-		slog.String("username", metrics.Username),
-		slog.Int("issues_assigned", metrics.IssuesAssigned),
-		slog.Int("issues_contributed", metrics.IssuesContributed),
-	)
-
-	return &metrics, nil
-}
-
-// buildFilterConditions builds SQL conditions and args from filter
-func (r *IndividualPerformanceRepositoryImpl) buildFilterConditions(filter domain.MetricsFilter, username string, startIdx int) ([]string, []interface{}) {
-	var conditions []string
-	var args []interface{}
-	argIdx := startIdx
-
-	args = append(args, username)
-
-	if filter.ProjectID > 0 {
-		argIdx++
-		conditions = append(conditions, fmt.Sprintf("project_id = $%d", argIdx))
-		args = append(args, filter.ProjectID)
-	}
-
-	if filter.StartDate != "" {
-		argIdx++
-		conditions = append(conditions, fmt.Sprintf("issue_id IN (SELECT issue_id FROM vw_issue_lifecycle_metrics WHERE final_done_at >= $%d::date)", argIdx))
-		args = append(args, filter.StartDate)
-	}
-
-	if filter.EndDate != "" {
-		argIdx++
-		conditions = append(conditions, fmt.Sprintf("issue_id IN (SELECT issue_id FROM vw_issue_lifecycle_metrics WHERE final_done_at < ($%d::date + INTERVAL '1 day'))", argIdx))
-		args = append(args, filter.EndDate)
-	}
-
-	return conditions, args
 }

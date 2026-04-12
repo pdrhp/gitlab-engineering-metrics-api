@@ -264,3 +264,102 @@ The implementation successfully:
 ✅ individual_performance field is optional (pointer with omitempty)
 ✅ Existing clients will continue to work without changes
 ```
+
+---
+
+## Rollback Procedure
+
+If issues are detected with fair attribution metrics, follow this procedure to rollback:
+
+### 1. Revert Database Changes
+
+```sql
+-- Drop dependent views first
+DROP VIEW IF EXISTS vw_individual_performance_metrics;
+DROP VIEW IF EXISTS vw_assignee_cycle_time;
+
+-- Drop performance indexes if needed
+DROP INDEX IF EXISTS idx_issues_assignees_history_gin;
+DROP INDEX IF EXISTS idx_issue_events_assignee_lookup;
+```
+
+### 2. Update API to Return Null for Individual Performance
+
+Modify `internal/services/user_performance_service.go` to skip individual performance:
+
+```go
+// Temporarily disable individual performance
+individualPerf := nil
+```
+
+### 3. Deploy Hotfix
+
+```bash
+# Deploy the hotfix to production
+./deploy.sh --hotfix --skip-individual-metrics
+```
+
+### 4. Communicate to API Consumers
+
+Send notification to all API consumers:
+
+```
+Subject: Temporary Unavailability - Individual Performance Metrics
+
+Due to data quality issues, the individual_performance field will temporarily 
+return null. Project-level metrics remain unaffected.
+
+ETA for resolution: [DATE]
+```
+
+### 5. Monitor and Investigate
+
+- Check logs for errors related to individual performance
+- Review database view definitions for issues
+- Test with sample data in staging environment
+
+### 6. Restore (After Fix)
+
+```sql
+-- Re-run migration 000017
+psql -h localhost -U gitlab_elt -d gitlab_elt -f db/schema/000017_assignee_cycle_time.up.sql
+```
+
+---
+
+## Monitoring Queries
+
+Use these queries to detect issues with fair attribution:
+
+### Detect Malformed Assignee History
+
+```sql
+SELECT COUNT(*) 
+FROM issues 
+WHERE assignees->'history' IS NOT NULL 
+  AND jsonb_array_length(assignees->'history') > 0
+  AND EXISTS (
+    SELECT 1 FROM jsonb_array_elements(assignees->'history') ae
+    WHERE ae->>'assigned_at' IS NULL 
+       OR ae->>'assigned_at' = ''
+  );
+```
+
+### Detect Negative Cycle Times (Should Never Happen)
+
+```sql
+SELECT COUNT(*) 
+FROM vw_assignee_cycle_time 
+WHERE active_cycle_hours < 0 
+   OR total_hours_as_assignee < 0;
+```
+
+### Detect Users with Impossible Metrics
+
+```sql
+SELECT * 
+FROM vw_individual_performance_metrics 
+WHERE active_work_pct < 0 
+   OR active_work_pct > 100
+   OR issues_contributed > issues_assigned;
+```

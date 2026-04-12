@@ -97,6 +97,15 @@ func TestIndividualPerformanceRepository_GetIndividualPerformanceMetrics(t *test
 			wantNil: false,
 		},
 		{
+			name:     "get individual performance metrics with project filter",
+			username: "root",
+			filter: domain.MetricsFilter{
+				ProjectID: 1,
+			},
+			wantErr: false,
+			wantNil: false,
+		},
+		{
 			name:     "get individual performance metrics for non-existent user",
 			username: "nonexistent-user-xyz123",
 			filter:   domain.MetricsFilter{},
@@ -119,6 +128,23 @@ func TestIndividualPerformanceRepository_GetIndividualPerformanceMetrics(t *test
 			if !tt.wantNil && result == nil && !tt.wantErr {
 				t.Errorf("GetIndividualPerformanceMetrics() expected non-nil result, got nil")
 				return
+			}
+
+			// Validate data structure for non-nil results
+			if result != nil {
+				if result.Username != tt.username {
+					t.Errorf("Expected username %s, got %s", tt.username, result.Username)
+				}
+				if result.IssuesAssigned < result.IssuesContributed {
+					t.Errorf("Expected IssuesAssigned (%d) >= IssuesContributed (%d) for fair attribution",
+						result.IssuesAssigned, result.IssuesContributed)
+				}
+				if result.ActiveWorkPct < 0 || result.ActiveWorkPct > 100 {
+					t.Errorf("Expected ActiveWorkPct between 0-100, got %f", result.ActiveWorkPct)
+				}
+				if result.TotalHoursAsAssignee < 0 {
+					t.Errorf("Expected TotalHoursAsAssignee >= 0, got %f", result.TotalHoursAsAssignee)
+				}
 			}
 		})
 	}

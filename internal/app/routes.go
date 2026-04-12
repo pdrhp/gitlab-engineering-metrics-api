@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"regexp"
 	"strings"
 
 	"gitlab-engineering-metrics-api/internal/auth"
@@ -15,6 +16,9 @@ import (
 	"gitlab-engineering-metrics-api/internal/repositories"
 	"gitlab-engineering-metrics-api/internal/services"
 )
+
+// usernameRegex validates username format (alphanumeric, hyphens, underscores)
+var usernameRegex = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
 
 type App struct {
 	db        *sql.DB
@@ -92,10 +96,25 @@ func (a *App) registerCatalogRoutes(mux *http.ServeMux) {
 }
 
 // isUserPerformancePath checks if the path is a user performance endpoint
+// Returns true only if path matches /api/v1/users/{username}/performance with valid username
 func isUserPerformancePath(path string) bool {
 	// Expected format: /api/v1/users/{username}/performance
 	parts := strings.Split(strings.Trim(path, "/"), "/")
-	return len(parts) == 5 && parts[0] == "api" && parts[1] == "v1" && parts[2] == "users" && parts[4] == "performance"
+	if len(parts) != 5 || parts[0] != "api" || parts[1] != "v1" || parts[2] != "users" || parts[4] != "performance" {
+		return false
+	}
+
+	// Validate username format (parts[3])
+	if !isValidUsername(parts[3]) {
+		return false
+	}
+
+	return true
+}
+
+// isValidUsername validates that username contains only alphanumeric characters, hyphens, and underscores
+func isValidUsername(username string) bool {
+	return len(username) > 0 && len(username) <= 50 && usernameRegex.MatchString(username)
 }
 
 func (a *App) registerMetricsRoutes(mux *http.ServeMux) {
