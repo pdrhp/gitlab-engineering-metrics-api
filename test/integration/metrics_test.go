@@ -398,3 +398,85 @@ func TestMetrics_DeliveryTrend_Unauthorized(t *testing.T) {
 func floatPtr(f float64) *float64 {
 	return &f
 }
+
+func TestUserPerformance_EndToEnd_UsesFairAttribution(t *testing.T) {
+	ts := SetupTestServer(t)
+	defer TeardownTestServer(ts)
+
+	ts.Builder.MetricsService.UserPerformanceResponse = &domain.UserPerformanceResponse{
+		User: domain.UserPerformanceIdentity{
+			Username:    "testuser",
+			DisplayName: "Test User",
+		},
+		Period: domain.Period{
+			StartDate: "2026-01-01",
+			EndDate:   "2026-01-31",
+		},
+		Delivery: domain.UserDeliveryMetrics{
+			Throughput: domain.Throughput{
+				TotalIssuesDone: 10,
+				AvgPerWeek:      2.5,
+			},
+		},
+		Quality: domain.UserQualityMetrics{
+			Rework: domain.ReworkMetrics{
+				TotalReworkedIssues: 2,
+			},
+			GhostWork: domain.GhostWorkMetrics{
+				RatePct: 12.5,
+			},
+		},
+		WIP: domain.WipMetricsResponse{
+			CurrentWIP: domain.CurrentWIP{
+				InProgress: 3,
+			},
+		},
+		IndividualPerformance: &domain.IndividualPerformanceMetrics{
+			Username:              "testuser",
+			IssuesAssigned:        10,
+			IssuesContributed:     8,
+			ActiveWorkPct:         83.5,
+			TotalActiveCycleHours: 250.5,
+			TotalDevHours:         180.0,
+			TotalQAHours:          50.5,
+			TotalBlockedHours:     15.0,
+			P50ActiveCycleHours:   24.5,
+			P95ActiveCycleHours:   48.0,
+		},
+	}
+
+	resp := MakeAuthenticatedRequest(t, ts, http.MethodGet, "/api/v1/users/testuser/performance?start_date=2026-01-01&end_date=2026-01-31", nil)
+	defer resp.Body.Close()
+
+	AssertStatusCode(t, resp, http.StatusOK)
+	AssertContentType(t, resp, "application/json")
+
+	var result domain.UserPerformanceResponse
+	ParseResponse(t, resp, &result)
+
+	if result.IndividualPerformance == nil {
+		t.Fatal("expected individual_performance to be present in response")
+	}
+
+	if result.IndividualPerformance.Username != "testuser" {
+		t.Errorf("expected username testuser, got %s", result.IndividualPerformance.Username)
+	}
+
+	if result.IndividualPerformance.IssuesAssigned != 10 {
+		t.Errorf("expected issues_assigned 10, got %d", result.IndividualPerformance.IssuesAssigned)
+	}
+
+	if result.IndividualPerformance.IssuesContributed != 8 {
+		t.Errorf("expected issues_contributed 8, got %d", result.IndividualPerformance.IssuesContributed)
+	}
+
+	if result.IndividualPerformance.ActiveWorkPct < 0.0 || result.IndividualPerformance.ActiveWorkPct > 100.0 {
+		t.Errorf("expected active_work_pct between 0 and 100, got %f", result.IndividualPerformance.ActiveWorkPct)
+	}
+
+	if result.IndividualPerformance.IssuesContributed > result.IndividualPerformance.IssuesAssigned {
+		t.Errorf("expected issues_contributed (%d) <= issues_assigned (%d)",
+			result.IndividualPerformance.IssuesContributed,
+			result.IndividualPerformance.IssuesAssigned)
+	}
+}

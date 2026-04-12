@@ -224,7 +224,7 @@ func TestIssuesService_GetTimeline(t *testing.T) {
 		response: &domain.IssueTimelineResponse{
 			Issue: domain.IssueSummary{
 				IssueID: 1,
-				Title: "Test Issue",
+				Title:   "Test Issue",
 			},
 			Timeline: []domain.TimelineEvent{
 				{Type: "state_transition"},
