@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"gitlab-engineering-metrics-api/internal/domain"
@@ -53,6 +54,12 @@ func (h *UserPerformanceHandler) Get(w http.ResponseWriter, r *http.Request) {
 	filter := domain.MetricsFilter{
 		StartDate: r.URL.Query().Get("start_date"),
 		EndDate:   r.URL.Query().Get("end_date"),
+	}
+
+	if projectID := r.URL.Query().Get("project_id"); projectID != "" {
+		if id, err := strconv.Atoi(projectID); err == nil {
+			filter.ProjectID = id
+		}
 	}
 
 	resp, err := h.service.Get(r.Context(), username, filter)
