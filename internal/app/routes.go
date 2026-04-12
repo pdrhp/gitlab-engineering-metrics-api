@@ -66,7 +66,8 @@ func (a *App) registerCatalogRoutes(mux *http.ServeMux) {
 	// Create user performance handler
 	metricsRepo := repositories.NewMetricsRepository(a.db)
 	metricsService := services.NewMetricsService(metricsRepo)
-	userPerformanceService := services.NewUserPerformanceService(usersRepo, metricsService)
+	individualPerfRepo := repositories.NewIndividualPerformanceRepository(a.db)
+	userPerformanceService := services.NewUserPerformanceService(usersRepo, metricsService, individualPerfRepo)
 	userPerformanceHandler := handlers.NewUserPerformanceHandler(userPerformanceService)
 
 	// Register routes with auth middleware

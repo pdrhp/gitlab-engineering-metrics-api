@@ -127,3 +127,77 @@ func TestUserPerformanceHandler_Get_ServiceError(t *testing.T) {
 		t.Fatalf("expected error code INTERNAL_ERROR, got %s", errResp.Code)
 	}
 }
+
+func TestUserPerformanceHandler_Get_ReturnsIndividualPerformance(t *testing.T) {
+	mockResponse := &domain.UserPerformanceResponse{
+		User: domain.UserPerformanceIdentity{
+			Username:    "testuser",
+			DisplayName: "Test User",
+		},
+		Period: domain.Period{StartDate: "2026-01-01", EndDate: "2026-01-31"},
+		Delivery: domain.UserDeliveryMetrics{
+			Throughput: domain.Throughput{TotalIssuesDone: 10, AvgPerWeek: 2.5},
+		},
+		Quality: domain.UserQualityMetrics{
+			Rework:    domain.ReworkMetrics{TotalReworkedIssues: 2},
+			GhostWork: domain.GhostWorkMetrics{RatePct: 12.5},
+		},
+		WIP: domain.WipMetricsResponse{
+			CurrentWIP: domain.CurrentWIP{InProgress: 3},
+		},
+		IndividualPerformance: &domain.IndividualPerformanceMetrics{
+			Username:              "testuser",
+			IssuesAssigned:        10,
+			IssuesContributed:     8,
+			ActiveWorkPct:         83.5,
+			TotalActiveCycleHours: 250.5,
+			TotalDevHours:         180.0,
+			TotalQAHours:          50.5,
+			TotalBlockedHours:     15.0,
+			TotalBacklogHours:     5.0,
+			TotalHoursAsAssignee:  250.5,
+			P50ActiveCycleHours:   24.5,
+			P95ActiveCycleHours:   48.0,
+		},
+	}
+
+	svc := &mockUserPerformanceService{response: mockResponse}
+	handler := NewUserPerformanceHandler(svc)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/users/testuser/performance?start_date=2026-01-01&end_date=2026-01-31", nil)
+	rr := httptest.NewRecorder()
+
+	handler.Get(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", rr.Code)
+	}
+
+	var got domain.UserPerformanceResponse
+	if err := json.Unmarshal(rr.Body.Bytes(), &got); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if got.IndividualPerformance == nil {
+		t.Fatal("expected individual_performance to be present in response")
+	}
+
+	if got.IndividualPerformance.Username != "testuser" {
+		t.Errorf("expected username testuser, got %s", got.IndividualPerformance.Username)
+	}
+
+	if got.IndividualPerformance.IssuesAssigned != 10 {
+		t.Errorf("expected issues_assigned 10, got %d", got.IndividualPerformance.IssuesAssigned)
+	}
+
+	if got.IndividualPerformance.IssuesContributed != 8 {
+		t.Errorf("expected issues_contributed 8, got %d", got.IndividualPerformance.IssuesContributed)
+	}
+
+	if got.IndividualPerformance.ActiveWorkPct != 83.5 {
+		t.Errorf("expected active_work_pct 83.5, got %f", got.IndividualPerformance.ActiveWorkPct)
+	}
+
+	if got.IndividualPerformance.TotalActiveCycleHours != 250.5 {
+		t.Errorf("expected total_active_cycle_hours 250.5, got %f", got.IndividualPerformance.TotalActiveCycleHours)
+	}
+}

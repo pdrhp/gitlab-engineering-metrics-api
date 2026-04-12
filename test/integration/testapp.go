@@ -46,11 +46,12 @@ func (m *MockCatalogService) ListUsers(ctx context.Context, filter domain.Catalo
 
 // MockMetricsService is a mock implementation of the metrics service
 type MockMetricsService struct {
-	DeliveryMetrics *domain.DeliveryMetricsResponse
-	QualityMetrics  *domain.QualityMetricsResponse
-	WipMetrics      *domain.WipMetricsResponse
-	DeliveryTrend   *domain.DeliveryTrendResponse
-	Err             error
+	DeliveryMetrics         *domain.DeliveryMetricsResponse
+	QualityMetrics          *domain.QualityMetricsResponse
+	WipMetrics              *domain.WipMetricsResponse
+	DeliveryTrend           *domain.DeliveryTrendResponse
+	UserPerformanceResponse *domain.UserPerformanceResponse
+	Err                     error
 }
 
 func (m *MockMetricsService) GetDeliveryMetrics(ctx context.Context, filter domain.MetricsFilter) (*domain.DeliveryMetricsResponse, error) {
@@ -79,6 +80,13 @@ func (m *MockMetricsService) GetDeliveryTrendMetrics(ctx context.Context, filter
 		return nil, m.Err
 	}
 	return m.DeliveryTrend, nil
+}
+
+func (m *MockMetricsService) Get(ctx context.Context, username string, filter domain.MetricsFilter) (*domain.UserPerformanceResponse, error) {
+	if m.Err != nil {
+		return nil, m.Err
+	}
+	return m.UserPerformanceResponse, nil
 }
 
 // MockIssuesService is a mock implementation of the issues service
@@ -166,6 +174,20 @@ func (b *TestAppBuilder) Build() http.Handler {
 		parts := splitPath(path)
 		if len(parts) == 5 && parts[4] == "timeline" {
 			timelineHandler.Get(w, r)
+		} else {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusNotFound)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Not found"})
+		}
+	})))
+
+	// User performance route
+	userPerformanceHandler := handlers.NewUserPerformanceHandler(b.MetricsService)
+	mux.Handle("/api/v1/users/", authMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := r.URL.Path
+		parts := splitPath(path)
+		if len(parts) == 5 && parts[4] == "performance" {
+			userPerformanceHandler.Get(w, r)
 		} else {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusNotFound)

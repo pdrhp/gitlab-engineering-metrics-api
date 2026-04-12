@@ -50,6 +50,18 @@ func (m *mockUserPerformanceMetricsService) GetWipMetrics(ctx context.Context, f
 	return m.wip, nil
 }
 
+type mockIndividualPerformanceRepository struct {
+	metrics *domain.IndividualPerformanceMetrics
+	err     error
+}
+
+func (m *mockIndividualPerformanceRepository) GetIndividualPerformanceMetrics(ctx context.Context, username string, filter domain.MetricsFilter) (*domain.IndividualPerformanceMetrics, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
+	return m.metrics, nil
+}
+
 func TestUserPerformanceService_Get_HappyPath(t *testing.T) {
 	usersRepo := &mockUserLookupRepository{
 		user: &domain.User{
@@ -78,8 +90,25 @@ func TestUserPerformanceService_Get_HappyPath(t *testing.T) {
 			AgingWIP:   []domain.AgingIssue{},
 		},
 	}
+	individualPerfRepo := &mockIndividualPerformanceRepository{
+		metrics: &domain.IndividualPerformanceMetrics{
+			Username:               "ianfelps",
+			IssuesAssigned:         15,
+			IssuesContributed:      12,
+			TotalActiveCycleHours:  120.5,
+			AvgActiveCyclePerIssue: 10.04,
+			TotalDevHours:          85.2,
+			TotalQAHours:           20.3,
+			TotalBlockedHours:      10.0,
+			TotalBacklogHours:      5.0,
+			ActiveWorkPct:          87.5,
+			TotalHoursAsAssignee:   120.5,
+			P50ActiveCycleHours:    9.5,
+			P95ActiveCycleHours:    18.2,
+		},
+	}
 
-	svc := NewUserPerformanceService(usersRepo, metricsSvc)
+	svc := NewUserPerformanceService(usersRepo, metricsSvc, individualPerfRepo)
 	filter := domain.MetricsFilter{StartDate: "2026-01-01", EndDate: "2026-01-31"}
 	got, err := svc.Get(context.Background(), "ianfelps", filter)
 
@@ -126,6 +155,20 @@ func TestUserPerformanceService_Get_HappyPath(t *testing.T) {
 	if got.WIP.CurrentWIP.QAReview != 2 {
 		t.Errorf("expected wip.current_wip.qa_review 2, got %d", got.WIP.CurrentWIP.QAReview)
 	}
+
+	// Verify individual performance metrics
+	if got.IndividualPerformance == nil {
+		t.Fatal("expected IndividualPerformance, got nil")
+	}
+	if got.IndividualPerformance.Username != "ianfelps" {
+		t.Errorf("expected username 'ianfelps', got %s", got.IndividualPerformance.Username)
+	}
+	if got.IndividualPerformance.IssuesAssigned != 15 {
+		t.Errorf("expected issues_assigned 15, got %d", got.IndividualPerformance.IssuesAssigned)
+	}
+	if got.IndividualPerformance.IssuesContributed != 12 {
+		t.Errorf("expected issues_contributed 12, got %d", got.IndividualPerformance.IssuesContributed)
+	}
 }
 
 func TestUserPerformanceService_Get_UserNotFound(t *testing.T) {
@@ -133,8 +176,9 @@ func TestUserPerformanceService_Get_UserNotFound(t *testing.T) {
 		user: nil, // User not found
 	}
 	metricsSvc := &mockUserPerformanceMetricsService{}
+	individualPerfRepo := &mockIndividualPerformanceRepository{}
 
-	svc := NewUserPerformanceService(usersRepo, metricsSvc)
+	svc := NewUserPerformanceService(usersRepo, metricsSvc, individualPerfRepo)
 	_, err := svc.Get(context.Background(), "missing-user", domain.MetricsFilter{})
 
 	if err == nil {
@@ -148,8 +192,9 @@ func TestUserPerformanceService_Get_UserNotFound(t *testing.T) {
 func TestUserPerformanceService_Get_EmptyUsername(t *testing.T) {
 	usersRepo := &mockUserLookupRepository{}
 	metricsSvc := &mockUserPerformanceMetricsService{}
+	individualPerfRepo := &mockIndividualPerformanceRepository{}
 
-	svc := NewUserPerformanceService(usersRepo, metricsSvc)
+	svc := NewUserPerformanceService(usersRepo, metricsSvc, individualPerfRepo)
 	_, err := svc.Get(context.Background(), "", domain.MetricsFilter{})
 
 	if err == nil {
@@ -176,8 +221,9 @@ func TestUserPerformanceService_Get_ServiceError(t *testing.T) {
 	metricsSvc := &mockUserPerformanceMetricsService{
 		err: errors.New("database connection failed"),
 	}
+	individualPerfRepo := &mockIndividualPerformanceRepository{}
 
-	svc := NewUserPerformanceService(usersRepo, metricsSvc)
+	svc := NewUserPerformanceService(usersRepo, metricsSvc, individualPerfRepo)
 	_, err := svc.Get(context.Background(), "ianfelps", domain.MetricsFilter{})
 
 	if err == nil {
@@ -193,8 +239,9 @@ func TestUserPerformanceService_Get_RepositoryError(t *testing.T) {
 		err: errors.New("repository error"),
 	}
 	metricsSvc := &mockUserPerformanceMetricsService{}
+	individualPerfRepo := &mockIndividualPerformanceRepository{}
 
-	svc := NewUserPerformanceService(usersRepo, metricsSvc)
+	svc := NewUserPerformanceService(usersRepo, metricsSvc, individualPerfRepo)
 	_, err := svc.Get(context.Background(), "ianfelps", domain.MetricsFilter{})
 
 	if err == nil {
@@ -219,6 +266,9 @@ func TestUserPerformanceService_Get_FilterAssigneeSet(t *testing.T) {
 		quality:  &domain.QualityMetricsResponse{},
 		wip:      &domain.WipMetricsResponse{},
 	}
+	individualPerfRepo := &mockIndividualPerformanceRepository{
+		metrics: &domain.IndividualPerformanceMetrics{},
+	}
 
 	// Override to capture the filter
 	metricsSvcWithCapture := &mockMetricsSvcWithCapture{
@@ -228,7 +278,7 @@ func TestUserPerformanceService_Get_FilterAssigneeSet(t *testing.T) {
 		},
 	}
 
-	svc := NewUserPerformanceService(usersRepo, metricsSvcWithCapture)
+	svc := NewUserPerformanceService(usersRepo, metricsSvcWithCapture, individualPerfRepo)
 	filter := domain.MetricsFilter{StartDate: "2026-01-01", EndDate: "2026-01-31"}
 	svc.Get(context.Background(), "ianfelps", filter)
 
@@ -246,4 +296,39 @@ type mockMetricsSvcWithCapture struct {
 func (m *mockMetricsSvcWithCapture) GetDeliveryMetrics(ctx context.Context, filter domain.MetricsFilter) (*domain.DeliveryMetricsResponse, error) {
 	m.captureFilter(filter)
 	return m.mockUserPerformanceMetricsService.GetDeliveryMetrics(ctx, filter)
+}
+
+func TestUserPerformanceService_Get_NoIndividualPerformance(t *testing.T) {
+	usersRepo := &mockUserLookupRepository{
+		user: &domain.User{
+			Username:    "new-user",
+			DisplayName: "New User",
+		},
+	}
+	metricsSvc := &mockUserPerformanceMetricsService{
+		delivery: &domain.DeliveryMetricsResponse{
+			Throughput:       domain.Throughput{},
+			SpeedMetricsDays: domain.SpeedMetrics{},
+		},
+		quality: &domain.QualityMetricsResponse{},
+		wip:     &domain.WipMetricsResponse{},
+	}
+	individualPerfRepo := &mockIndividualPerformanceRepository{
+		metrics: nil, // User has no performance metrics yet
+	}
+
+	svc := NewUserPerformanceService(usersRepo, metricsSvc, individualPerfRepo)
+	filter := domain.MetricsFilter{StartDate: "2026-01-01", EndDate: "2026-01-31"}
+	got, err := svc.Get(context.Background(), "new-user", filter)
+
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if got == nil {
+		t.Fatal("expected response, got nil")
+	}
+	// IndividualPerformance should be nil when user has no metrics
+	if got.IndividualPerformance != nil {
+		t.Errorf("expected IndividualPerformance to be nil, got %v", got.IndividualPerformance)
+	}
 }

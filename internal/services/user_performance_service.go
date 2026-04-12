@@ -21,17 +21,28 @@ type UserPerformanceMetricsService interface {
 	GetWipMetrics(ctx context.Context, filter domain.MetricsFilter) (*domain.WipMetricsResponse, error)
 }
 
+// IndividualPerformanceRepository defines the contract for fair individual metrics
+type IndividualPerformanceRepository interface {
+	GetIndividualPerformanceMetrics(ctx context.Context, username string, filter domain.MetricsFilter) (*domain.IndividualPerformanceMetrics, error)
+}
+
 // UserPerformanceService provides user performance operations
 type UserPerformanceService struct {
-	usersRepo  UserLookupRepository
-	metricsSvc UserPerformanceMetricsService
+	usersRepo          UserLookupRepository
+	metricsSvc         UserPerformanceMetricsService
+	individualPerfRepo IndividualPerformanceRepository
 }
 
 // NewUserPerformanceService creates a new user performance service
-func NewUserPerformanceService(usersRepo UserLookupRepository, metricsSvc UserPerformanceMetricsService) *UserPerformanceService {
+func NewUserPerformanceService(
+	usersRepo UserLookupRepository,
+	metricsSvc UserPerformanceMetricsService,
+	individualPerfRepo IndividualPerformanceRepository,
+) *UserPerformanceService {
 	return &UserPerformanceService{
-		usersRepo:  usersRepo,
-		metricsSvc: metricsSvc,
+		usersRepo:          usersRepo,
+		metricsSvc:         metricsSvc,
+		individualPerfRepo: individualPerfRepo,
 	}
 }
 
@@ -66,6 +77,12 @@ func (s *UserPerformanceService) Get(ctx context.Context, username string, filte
 		return nil, err
 	}
 
+	// Get fair individual performance metrics
+	individualPerf, err := s.individualPerfRepo.GetIndividualPerformanceMetrics(ctx, username, filter)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load individual performance metrics: %w", err)
+	}
+
 	return &domain.UserPerformanceResponse{
 		User: domain.UserPerformanceIdentity{
 			Username:                  user.Username,
@@ -88,6 +105,7 @@ func (s *UserPerformanceService) Get(ctx context.Context, username string, filte
 			Bottlenecks:   quality.Bottlenecks,
 			Defects:       quality.Defects,
 		},
-		WIP: *wip,
+		WIP:                   *wip,
+		IndividualPerformance: individualPerf,
 	}, nil
 }
