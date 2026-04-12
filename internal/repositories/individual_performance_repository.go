@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log/slog"
+	"strings"
 
 	"gitlab-engineering-metrics-api/internal/domain"
 	"gitlab-engineering-metrics-api/internal/observability"
@@ -44,18 +45,19 @@ func (r *IndividualPerformanceRepositoryImpl) GetAssigneeCycleTime(ctx context.C
 
 	query := `
 		SELECT
-			issue_id,
-			issue_iid,
-			project_id,
-			COALESCE(active_cycle_hours, 0) as active_cycle_hours,
-			COALESCE(in_progress_hours, 0) as in_progress_hours,
-			COALESCE(qa_review_hours, 0) as qa_review_hours,
-			COALESCE(blocked_hours, 0) as blocked_hours,
-			COALESCE(backlog_hours, 0) as backlog_hours,
-			COALESCE(total_hours_as_assignee, 0) as total_hours_as_assignee,
-			COALESCE(contributed_active_work, false) as contributed_active_work
-		FROM vw_assignee_cycle_time
-		WHERE assignee_username = $1
+			act.issue_id,
+			act.issue_iid,
+			act.project_id,
+			COALESCE(act.active_cycle_hours, 0) as active_cycle_hours,
+			COALESCE(act.in_progress_hours, 0) as in_progress_hours,
+			COALESCE(act.qa_review_hours, 0) as qa_review_hours,
+			COALESCE(act.blocked_hours, 0) as blocked_hours,
+			COALESCE(act.backlog_hours, 0) as backlog_hours,
+			COALESCE(act.total_hours_as_assignee, 0) as total_hours_as_assignee,
+			COALESCE(act.contributed_active_work, false) as contributed_active_work
+		FROM vw_assignee_cycle_time act
+		INNER JOIN vw_issue_lifecycle_metrics lcm ON lcm.issue_id = act.issue_id AND lcm.project_id = act.project_id
+		WHERE act.assignee_username = $1
 	`
 
 	args := []interface{}{username}
@@ -63,11 +65,23 @@ func (r *IndividualPerformanceRepositoryImpl) GetAssigneeCycleTime(ctx context.C
 
 	if filter.ProjectID > 0 {
 		argIdx++
-		query += fmt.Sprintf(" AND project_id = $%d", argIdx)
+		query += fmt.Sprintf(" AND act.project_id = $%d", argIdx)
 		args = append(args, filter.ProjectID)
 	}
 
-	query += " ORDER BY issue_id"
+	if filter.StartDate != "" {
+		argIdx++
+		query += fmt.Sprintf(" AND lcm.final_done_at >= $%d::date", argIdx)
+		args = append(args, filter.StartDate)
+	}
+
+	if filter.EndDate != "" {
+		argIdx++
+		query += fmt.Sprintf(" AND lcm.final_done_at < ($%d::date + INTERVAL '1 day')", argIdx)
+		args = append(args, filter.EndDate)
+	}
+
+	query += " ORDER BY act.issue_id"
 
 	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
@@ -111,7 +125,7 @@ func (r *IndividualPerformanceRepositoryImpl) GetAssigneeCycleTime(ctx context.C
 
 // GetIndividualPerformanceMetrics returns aggregated performance metrics for an assignee
 // Always aggregates across all projects unless ProjectID is specified in filter
-// Note: Date filtering is applied via join with vw_assignee_cycle_time which has issue-level data
+// Date filtering is applied via JOIN with vw_issue_lifecycle_metrics using final_done_at
 func (r *IndividualPerformanceRepositoryImpl) GetIndividualPerformanceMetrics(ctx context.Context, username string, filter domain.MetricsFilter) (*domain.IndividualPerformanceMetrics, error) {
 	individualPerformanceRepoLogger.Debug("getting individual performance metrics",
 		slog.String("username", username),
@@ -120,39 +134,65 @@ func (r *IndividualPerformanceRepositoryImpl) GetIndividualPerformanceMetrics(ct
 		slog.Int("project_id", filter.ProjectID),
 	)
 
-	query := `
+	baseQuery := `
+		WITH filtered_assignee_data AS (
+			SELECT
+				act.assignee_username,
+				act.project_id,
+				act.issue_id,
+				act.active_cycle_hours,
+				act.in_progress_hours,
+				act.qa_review_hours,
+				act.blocked_hours,
+				act.backlog_hours,
+				act.total_hours_as_assignee,
+				act.contributed_active_work
+			FROM vw_assignee_cycle_time act
+			INNER JOIN vw_issue_lifecycle_metrics lcm ON lcm.issue_id = act.issue_id AND lcm.project_id = act.project_id
+			%s
+		)
 		SELECT
-			$1 as assignee_username,
-			COALESCE(SUM(issues_assigned), 0)::bigint as issues_assigned,
-			COALESCE(SUM(issues_contributed), 0)::bigint as issues_contributed,
-			COALESCE(SUM(total_active_cycle_hours), 0) as total_active_cycle_hours,
-			COALESCE(AVG(avg_active_cycle_per_issue), 0) as avg_active_cycle_per_issue,
-			COALESCE(SUM(total_dev_hours), 0) as total_dev_hours,
-			COALESCE(SUM(total_qa_hours), 0) as total_qa_hours,
-			COALESCE(SUM(total_blocked_hours), 0) as total_blocked_hours,
-			COALESCE(SUM(total_backlog_hours), 0) as total_backlog_hours,
+			assignee_username,
+			COALESCE(COUNT(DISTINCT issue_id), 0)::bigint AS issues_assigned,
+			COALESCE(COUNT(DISTINCT issue_id) FILTER (WHERE contributed_active_work), 0)::bigint AS issues_contributed,
+			COALESCE(ROUND(SUM(active_cycle_hours)::numeric, 2), 0) AS total_active_cycle_hours,
+			COALESCE(ROUND(AVG(active_cycle_hours)::numeric, 2), 0) AS avg_active_cycle_per_issue,
+			COALESCE(ROUND(SUM(in_progress_hours)::numeric, 2), 0) AS total_dev_hours,
+			COALESCE(ROUND(SUM(qa_review_hours)::numeric, 2), 0) AS total_qa_hours,
+			COALESCE(ROUND(SUM(blocked_hours)::numeric, 2), 0) AS total_blocked_hours,
+			COALESCE(ROUND(SUM(backlog_hours)::numeric, 2), 0) AS total_backlog_hours,
 			CASE 
 				WHEN SUM(total_hours_as_assignee) > 0 
-				THEN ROUND((100.0 * SUM(total_active_cycle_hours) / SUM(total_hours_as_assignee))::numeric, 2)
+				THEN ROUND((100.0 * SUM(active_cycle_hours) / SUM(total_hours_as_assignee))::numeric, 2)
 				ELSE 0 
-			END as active_work_pct,
-			COALESCE(SUM(total_hours_as_assignee), 0) as total_hours_as_assignee,
-			COALESCE(AVG(p50_active_cycle_hours), 0) as p50_active_cycle_hours,
-			COALESCE(AVG(p95_active_cycle_hours), 0) as p95_active_cycle_hours
-		FROM vw_individual_performance_metrics
-		WHERE assignee_username = $1
+			END AS active_work_pct,
+			COALESCE(ROUND(SUM(total_hours_as_assignee)::numeric, 2), 0) AS total_hours_as_assignee,
+			COALESCE(ROUND(PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY active_cycle_hours)::numeric, 2), 0) AS p50_active_cycle_hours,
+			COALESCE(ROUND(PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY active_cycle_hours)::numeric, 2), 0) AS p95_active_cycle_hours
+		FROM filtered_assignee_data
+		GROUP BY assignee_username
 	`
 
 	args := []interface{}{username}
-	argIdx := 1
+	whereConditions := []string{"act.assignee_username = $1"}
 
 	if filter.ProjectID > 0 {
-		argIdx++
-		query += fmt.Sprintf(" AND project_id = $%d", argIdx)
 		args = append(args, filter.ProjectID)
+		whereConditions = append(whereConditions, fmt.Sprintf("act.project_id = $%d", len(args)))
 	}
 
-	query += " GROUP BY assignee_username"
+	if filter.StartDate != "" {
+		args = append(args, filter.StartDate)
+		whereConditions = append(whereConditions, fmt.Sprintf("lcm.final_done_at >= $%d::date", len(args)))
+	}
+
+	if filter.EndDate != "" {
+		args = append(args, filter.EndDate)
+		whereConditions = append(whereConditions, fmt.Sprintf("lcm.final_done_at < ($%d::date + INTERVAL '1 day')", len(args)))
+	}
+
+	whereClause := "WHERE " + strings.Join(whereConditions, " AND ")
+	query := fmt.Sprintf(baseQuery, whereClause)
 
 	var metrics domain.IndividualPerformanceMetrics
 	err := r.db.QueryRowContext(ctx, query, args...).Scan(
